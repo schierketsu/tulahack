@@ -1,0 +1,357 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background-color: #ffffff;
+}
+
+body {
+  color: #1a1a1a;
+}
+
+.app-root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.map-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-header {
+  padding: 14px 20px;
+  background: #ffffff;
+  color: #000000;
+  z-index: 10;
+}
+
+.filters-header {
+  padding: 12px 20px;
+  background: #ffffff;
+  border-bottom: 3px solid #ff0000;
+  z-index: 9;
+}
+
+.filters-label {
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(39, 51, 80, 0.5);
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+
+.filters-container {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filter-button {
+  padding: 8px 16px;
+  border: 2px solid;
+  border-radius: 8px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  background-color: #ffffff;
+  color: rgba(39, 51, 80, 0.5);
+  line-height: 1.3;
+}
+
+.filter-button:hover {
+  opacity: 0.8;
+  transform: translateY(-1px);
+}
+
+.filter-button.active {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.app-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-header-logo {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  max-width: 40px;
+  max-height: 40px;
+  object-fit: contain;
+  flex-shrink: 0;
+  display: block;
+  box-sizing: border-box;
+}
+
+.app-header-title-wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 40px;
+  gap: 2px;
+}
+
+.app-header-title {
+  font-family: "Montserrat", sans-serif;
+  line-height: 1.3;
+}
+
+.app-header-title-main {
+  font-size: 20px;
+  font-weight: 600;
+  color: #273350;
+}
+
+.app-header-title-sub {
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(39, 51, 80, 0.5);
+}
+
+.app-header-right-dot {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  max-width: 40px;
+  max-height: 40px;
+  border-radius: 50%;
+  background-color: #ff0000;
+  flex-shrink: 0;
+  display: block;
+  box-sizing: border-box;
+}
+
+.map-container {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: #ffffff;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  overflow: hidden;
+  padding: 0;
+  pointer-events: auto;
+  /* Убеждаемся, что события колесика мыши проходят */
+  -webkit-overflow-scrolling: touch;
+}
+
+.map-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1;
+  margin: 0;
+  pointer-events: auto;
+  touch-action: pan-x pan-y pinch-zoom;
+  /* Убеждаемся, что события колесика мыши проходят */
+  overflow: visible;
+}
+
+.object-card-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 12px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.object-card {
+  width: 100%;
+  max-width: 480px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e9ecef;
+  pointer-events: auto;
+}
+
+.object-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.object-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.object-card-category {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #ff4b4b;
+  font-weight: 600;
+}
+
+.object-card-close {
+  border: none;
+  background: transparent;
+  color: #6c757d;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 999px;
+  transition: all 0.2s;
+}
+
+.object-card-close:hover {
+  background: #f8f9fa;
+  color: #1a1a1a;
+}
+
+.object-card-body {
+  margin-top: 10px;
+  font-size: 14px;
+  color: #495057;
+  line-height: 1.5;
+}
+
+.object-card-address {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.object-card-footer {
+  margin-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.object-card-button {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #ff4b4b, #ff8c5f);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(255, 75, 75, 0.45);
+}
+
+.object-card-button:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(255, 75, 75, 0.4);
+}
+
+.object-card-tagline {
+  font-size: 11px;
+  color: #6c757d;
+}
+
+.detail-page {
+  min-height: 100%;
+  background: radial-gradient(circle at top, #ff4b4b22, #050608);
+  color: #f5f5f5;
+  padding: 16px;
+}
+
+.detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: #ffb3b3;
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+
+.detail-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.detail-category {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #ffb3b3;
+}
+
+.detail-section {
+  margin-top: 16px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.detail-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9fa3b4;
+  margin-bottom: 4px;
+}
+
+.detail-badge-row {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.detail-badge {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+
+@media (min-width: 768px) {
+  .app-header {
+    padding: 24px 32px;
+  }
+
+  .app-title {
+    font-size: 28px;
+  }
+
+  .app-subtitle {
+    font-size: 15px;
+  }
+
+  .map-container {
+    padding: 0;
+  }
+}
+
+
