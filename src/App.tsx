@@ -1,6 +1,8 @@
 import { Route, Routes } from "react-router-dom";
 import { YandexMap } from "./components/Map/YandexMap";
 import { ObjectCard } from "./components/ObjectCard/ObjectCard";
+import { RouteCard } from "./components/RouteCard/RouteCard";
+import { RouteInfoModal } from "./components/RouteInfo/RouteInfoModal";
 import { useState, useRef, useEffect } from "react";
 import { SocialObject } from "./types";
 import { socialObjects } from "./data/socialObjects";
@@ -16,6 +18,15 @@ export default function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [centerOnUserLocation, setCenterOnUserLocation] = useState(false);
+  const [isRouteCardOpen, setIsRouteCardOpen] = useState(false);
+  const [isSelectingFromMap, setIsSelectingFromMap] = useState(false);
+  const [selectedMapPoint, setSelectedMapPoint] = useState<[number, number] | null>(null);
+  const [route, setRoute] = useState<{
+    from: [number, number];
+    to: [number, number];
+    destinationName: string;
+  } | null>(null);
+  const [isRouteInfoModalOpen, setIsRouteInfoModalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const categories = [
@@ -93,7 +104,7 @@ export default function App() {
                         <input
                           className="app-header-search-input"
                           type="text"
-                          placeholder="Поиск учреждений..."
+                          placeholder="Введите название учреждения"
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           autoFocus
@@ -159,6 +170,10 @@ export default function App() {
                   selectedCategories={selectedCategories}
                   centerOnUserLocation={centerOnUserLocation}
                   onUserLocationCentered={() => setCenterOnUserLocation(false)}
+                  isSelectingFromMap={isSelectingFromMap}
+                  selectedMapPoint={selectedMapPoint}
+                  onMapPointSelected={setSelectedMapPoint}
+                  route={route}
                 />
                 <button
                   type="button"
@@ -171,13 +186,91 @@ export default function App() {
                     <path d="M12 8C9.79 8 8 9.79 8 12C8 14.21 9.79 16 12 16C14.21 16 16 14.21 16 12C16 9.79 14.21 8 12 8ZM20.94 11C20.48 6.83 17.17 3.52 13 3.06V1H11V3.06C6.83 3.52 3.52 6.83 3.06 11H1V13H3.06C3.52 17.17 6.83 20.48 11 20.94V23H13V20.94C17.17 20.48 20.48 17.17 20.94 13H23V11H20.94ZM12 19C8.13 19 5 15.87 5 12C5 8.13 8.13 5 12 5C15.87 5 19 8.13 19 12C19 15.87 15.87 19 12 19Z" fill="currentColor"/>
                   </svg>
                 </button>
-                {selectedObject && (
+                {selectedObject && !isRouteCardOpen && (
                   <ObjectCard
                     object={selectedObject}
                     onClose={() => setSelectedObjectId(null)}
                     onBuildRoute={(id) => {
-                      // TODO: Реализовать построение маршрута
-                      console.log("Построить маршрут к объекту:", id);
+                      const object = socialObjects.find((o) => o.id === id);
+                      if (!object) return;
+
+                      // Координаты объекта в формате [lat, lon], преобразуем в [lng, lat]
+                      const destinationCoords: [number, number] = [
+                        object.coordinates[1], // lng
+                        object.coordinates[0]  // lat
+                      ];
+
+                      // Функция для построения маршрута
+                      const buildRouteFromLocation = (userCoords: [number, number]) => {
+                        setRoute({
+                          from: userCoords,
+                          to: destinationCoords,
+                          destinationName: object.name
+                        });
+                        setIsRouteInfoModalOpen(true);
+                        // Закрываем карточку объекта
+                        setSelectedObjectId(null);
+                      };
+
+                      // Если местоположение неизвестно, запрашиваем его
+                      if (!navigator.geolocation) {
+                        alert("Геолокация не поддерживается вашим браузером. Маршрут не может быть построен.");
+                        return;
+                      }
+
+                      navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                          const coords: [number, number] = [
+                            position.coords.longitude,
+                            position.coords.latitude
+                          ];
+                          buildRouteFromLocation(coords);
+                        },
+                        (error) => {
+                          console.error("Ошибка получения геолокации:", error);
+                          alert("Не удалось определить ваше местоположение. Маршрут не может быть построен.");
+                        }
+                      );
+                    }}
+                  />
+                )}
+                {isRouteCardOpen && (
+                  <RouteCard
+                    onClose={() => {
+                      setIsRouteCardOpen(false);
+                      setActiveTab("main");
+                      setIsSelectingFromMap(false);
+                      setSelectedMapPoint(null);
+                      setRoute(null);
+                      setIsRouteInfoModalOpen(false);
+                    }}
+                    onSelectFromMap={(enabled) => {
+                      setIsSelectingFromMap(enabled);
+                      if (!enabled) {
+                        setSelectedMapPoint(null);
+                      }
+                    }}
+                    selectedMapPoint={selectedMapPoint}
+                    onSelectPoint={() => {
+                      // Точка выбрана, можно использовать selectedMapPoint
+                      console.log("Выбрана точка на карте:", selectedMapPoint);
+                      setIsSelectingFromMap(false);
+                    }}
+                    onBuildRoute={(from, to, destinationName) => {
+                      setRoute({ from, to, destinationName });
+                      setIsRouteCardOpen(false);
+                      setIsRouteInfoModalOpen(true);
+                    }}
+                  />
+                )}
+                {isRouteInfoModalOpen && route && (
+                  <RouteInfoModal
+                    destinationName={route.destinationName}
+                    from={route.from}
+                    to={route.to}
+                    onClose={() => {
+                      setIsRouteInfoModalOpen(false);
+                      setRoute(null);
                     }}
                   />
                 )}
@@ -191,6 +284,7 @@ export default function App() {
                       onClick={() => {
                         setActiveTab("main");
                         setIsDropdownOpen(!isDropdownOpen);
+                        setIsRouteCardOpen(false);
                       }}
                     >
                       <img 
@@ -238,7 +332,16 @@ export default function App() {
 
                 <button 
                   className={`bottom-nav-section bottom-nav-section-center bottom-nav-button ${activeTab === "route" ? "active" : ""}`}
-                  onClick={() => setActiveTab("route")}
+                  onClick={() => {
+                    if (isRouteCardOpen) {
+                      setIsRouteCardOpen(false);
+                      setActiveTab("main");
+                    } else {
+                      setActiveTab("route");
+                      setIsRouteCardOpen(true);
+                      setSelectedObjectId(null);
+                    }
+                  }}
                 >
                   <img 
                     src="/маршрут.png" 
@@ -250,7 +353,10 @@ export default function App() {
 
                 <button 
                   className={`bottom-nav-section bottom-nav-section-right bottom-nav-button ${activeTab === "profile" ? "active" : ""}`}
-                  onClick={() => setActiveTab("profile")}
+                  onClick={() => {
+                    setActiveTab("profile");
+                    setIsRouteCardOpen(false);
+                  }}
                 >
                   <img 
                     src="/профиль.png" 

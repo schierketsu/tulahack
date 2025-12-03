@@ -23,9 +23,17 @@ interface YandexMapProps {
   selectedCategories: Set<string>;
   centerOnUserLocation?: boolean;
   onUserLocationCentered?: () => void;
+  isSelectingFromMap?: boolean;
+  selectedMapPoint?: [number, number] | null;
+  onMapPointSelected?: (coords: [number, number] | null) => void;
+  route?: {
+    from: [number, number];
+    to: [number, number];
+    destinationName: string;
+  } | null;
 }
 
-export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories, centerOnUserLocation, onUserLocationCentered }: YandexMapProps) {
+export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories, centerOnUserLocation, onUserLocationCentered, isSelectingFromMap, selectedMapPoint, onMapPointSelected, route }: YandexMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -36,8 +44,11 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null); // [lng, lat]
   const [showLocationNotification, setShowLocationNotification] = useState(false);
   const userLocationMarkerRef = useRef<any>(null);
+  const selectedPointMarkerRef = useRef<any>(null);
   const featuresLayerRef = useRef<any>(null);
   const tulaBoundsRef = useRef<[[number, number], [number, number]] | null>(null);
+  const isSelectingFromMapRef = useRef<boolean>(false);
+  const routeFeatureRef = useRef<any>(null);
 
   useEffect(() => {
     let destroyed = false;
@@ -449,6 +460,13 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
         const mapClickListener = new YMapListener({
           layerId: 'any',
           onClick: (event: any) => {
+            // Если включен режим выбора точки на карте
+            if (isSelectingFromMapRef.current && event.coordinates) {
+              const coords = event.coordinates; // [lng, lat] в API v3
+              onMapPointSelected?.(coords);
+              return;
+            }
+            
             // Проверяем, был ли клик по маркеру
             const target = event.details?.originalEvent?.target as HTMLElement;
             if (target) {
@@ -953,6 +971,192 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
       getUserLocation();
     }
   }, [centerOnUserLocation, isLoaded, onUserLocationCentered]);
+
+  // Управление маркером выбранной точки на карте
+  useEffect(() => {
+    if (!isLoaded || !mapRef.current || !featuresLayerRef.current || !window.ymaps3) return;
+
+    const { YMapMarker } = window.ymaps3;
+
+    // Удаляем старый маркер, если есть
+    if (selectedPointMarkerRef.current) {
+      try {
+        featuresLayerRef.current.removeChild(selectedPointMarkerRef.current);
+      } catch (e) {
+        // Игнорируем ошибки
+      }
+      selectedPointMarkerRef.current = null;
+    }
+
+    // Создаем новый маркер, если есть выбранная точка
+    if (selectedMapPoint && isSelectingFromMap) {
+      const markerElement = document.createElement('div');
+      markerElement.className = 'selected-point-marker';
+      markerElement.style.cssText = 'width: 32px; height: 32px; cursor: pointer; position: absolute; left: -16px; top: -16px; pointer-events: none !important; z-index: 2001; user-select: none;';
+      
+      const pinSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      pinSvg.setAttribute('width', '32');
+      pinSvg.setAttribute('height', '32');
+      pinSvg.setAttribute('viewBox', '0 0 32 32');
+      pinSvg.style.cssText = 'filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));';
+      
+      const pinPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      pinPath.setAttribute('d', 'M16 2C10.48 2 6 6.48 6 12C6 19.5 16 30 16 30C16 30 26 19.5 26 12C26 6.48 21.52 2 16 2ZM16 16C14.35 16 13 14.65 13 13C13 11.35 14.35 10 16 10C17.65 10 19 11.35 19 13C19 14.65 17.65 16 16 16Z');
+      pinPath.setAttribute('fill', '#4CAF50');
+      
+      pinSvg.appendChild(pinPath);
+      markerElement.appendChild(pinSvg);
+
+      const marker = new YMapMarker({
+        coordinates: selectedMapPoint,
+        mapFollowsOnDrag: false
+      }, markerElement);
+
+      featuresLayerRef.current.addChild(marker);
+      selectedPointMarkerRef.current = marker;
+    }
+
+    return () => {
+      if (selectedPointMarkerRef.current && featuresLayerRef.current) {
+        try {
+          featuresLayerRef.current.removeChild(selectedPointMarkerRef.current);
+        } catch (e) {
+          // Игнорируем ошибки
+        }
+        selectedPointMarkerRef.current = null;
+      }
+    };
+  }, [selectedMapPoint, isSelectingFromMap, isLoaded]);
+
+  // Обновляем ref для режима выбора при изменении пропса
+  useEffect(() => {
+    isSelectingFromMapRef.current = isSelectingFromMap ?? false;
+  }, [isSelectingFromMap]);
+
+  // Построение маршрута
+  useEffect(() => {
+    // Если маршрут удален, очищаем его с карты
+    if (!route) {
+      if (routeFeatureRef.current && featuresLayerRef.current) {
+        try {
+          featuresLayerRef.current.removeChild(routeFeatureRef.current);
+        } catch (e) {
+          // Игнорируем ошибки
+        }
+        routeFeatureRef.current = null;
+      }
+      return;
+    }
+
+    if (!isLoaded || !mapRef.current || !featuresLayerRef.current || !window.ymaps3) {
+      return;
+    }
+
+    // Небольшая задержка, чтобы убедиться, что карта полностью загружена
+    const timeoutId = setTimeout(() => {
+      const { YMapFeature } = window.ymaps3;
+
+      // Удаляем старую линию маршрута, если есть
+      if (routeFeatureRef.current && featuresLayerRef.current) {
+        try {
+          featuresLayerRef.current.removeChild(routeFeatureRef.current);
+        } catch (e) {
+          // Игнорируем ошибки
+        }
+        routeFeatureRef.current = null;
+      }
+
+      // Проверяем валидность координат
+      if (!route.from || !route.to || route.from.length !== 2 || route.to.length !== 2) {
+        console.error("Invalid route coordinates:", route);
+        return;
+      }
+
+      // Проверяем, находится ли начальная точка в границах Тульской области
+      let routeFrom = route.from;
+      if (!isInTulaBounds(routeFrom, tulaBoundsRef.current)) {
+        // Если пользователь вне области, используем центр Тулы как начальную точку
+        console.log("User location outside Tula bounds, using Tula center as start point");
+        routeFrom = [TULA_CENTER[1], TULA_CENTER[0]]; // [lng, lat]
+      }
+
+      // Создаем линию маршрута от начальной точки до конечной
+      try {
+        const routeFeature = new YMapFeature({
+          geometry: {
+            type: "LineString",
+            coordinates: [routeFrom, route.to]
+          },
+          style: {
+            stroke: [
+              {
+                width: 8,
+                color: "#ff0000"
+              }
+            ]
+          }
+        });
+
+        if (featuresLayerRef.current) {
+          featuresLayerRef.current.addChild(routeFeature);
+          routeFeatureRef.current = routeFeature;
+
+          // Вычисляем центр маршрута
+          const centerLng = (routeFrom[0] + route.to[0]) / 2;
+          const centerLat = (routeFrom[1] + route.to[1]) / 2;
+          
+          // Ограничиваем центр границами Тульской области, если они установлены
+          let finalCenter: [number, number] = [centerLng, centerLat];
+          if (tulaBoundsRef.current) {
+            const [[minLng, minLat], [maxLng, maxLat]] = tulaBoundsRef.current;
+            finalCenter = [
+              Math.max(minLng, Math.min(maxLng, centerLng)),
+              Math.max(minLat, Math.min(maxLat, centerLat))
+            ];
+          }
+          
+          // Вычисляем подходящий zoom
+          const latDiff = Math.abs(routeFrom[1] - route.to[1]);
+          const lngDiff = Math.abs(routeFrom[0] - route.to[0]);
+          const maxDiff = Math.max(latDiff, lngDiff);
+          
+          let zoom = 15;
+          if (maxDiff > 0.1) zoom = 10;
+          else if (maxDiff > 0.05) zoom = 12;
+          else if (maxDiff > 0.01) zoom = 13;
+          else if (maxDiff > 0.005) zoom = 14;
+
+          // Ограничиваем минимальный zoom, чтобы карта не уходила слишком далеко
+          zoom = Math.max(zoom, 9);
+
+          if (mapRef.current) {
+            // Используем center и zoom, но ограничиваем границами области
+            mapRef.current.setLocation({
+              center: finalCenter,
+              zoom: zoom,
+              duration: 500
+            });
+          }
+        } else {
+          console.error("featuresLayerRef.current is null!");
+        }
+      } catch (error) {
+        console.error("Error building route:", error);
+      }
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (routeFeatureRef.current && featuresLayerRef.current) {
+        try {
+          featuresLayerRef.current.removeChild(routeFeatureRef.current);
+        } catch (e) {
+          // Игнорируем ошибки
+        }
+        routeFeatureRef.current = null;
+      }
+    };
+  }, [route, isLoaded]);
 
   return (
     <>

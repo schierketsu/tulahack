@@ -438,6 +438,7 @@ body {
   display: flex;
   justify-content: center;
   pointer-events: none;
+  z-index: 1500;
 }
 
 .object-card {
@@ -509,15 +510,22 @@ body {
 
 .object-card-button {
   flex: 1;
-  padding: 8px 10px;
+  padding: 12px 20px;
   border-radius: 999px;
   border: none;
   background: linear-gradient(135deg, #ff4b4b, #ff8c5f);
   color: #ffffff;
-  font-size: 13px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(255, 75, 75, 0.45);
+  transition: all 0.2s ease;
+}
+
+.object-card-button:hover {
+  box-shadow: 0 6px 18px rgba(255, 75, 75, 0.5);
+  transform: translateY(-1px);
 }
 
 .object-card-button:active {
@@ -528,6 +536,330 @@ body {
 .object-card-tagline {
   font-size: 11px;
   color: #6c757d;
+}
+
+.route-card-content {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.route-card-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.route-card-label {
+  font-family: "Montserrat", sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(39, 51, 80, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.route-card-value {
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: #273350;
+  line-height: 1.4;
+  min-height: 20px;
+}
+
+.route-card-departure-dropdown {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.route-card-departure-button {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(39, 51, 80, 0.2);
+  background-color: #ffffff;
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: #273350;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  outline: none;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.route-card-departure-button:hover {
+  border-color: rgba(39, 51, 80, 0.4);
+}
+
+.route-card-departure-button:focus {
+  border-color: #273350;
+}
+
+.route-card-dropdown-arrow {
+  transition: transform 0.2s ease;
+  color: rgba(39, 51, 80, 0.6);
+  flex-shrink: 0;
+}
+
+.route-card-dropdown-arrow.open {
+  transform: rotate(180deg);
+}
+
+.route-card-departure-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background-color: #ffffff;
+  border: 1px solid rgba(39, 51, 80, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1001;
+  overflow: hidden;
+}
+
+.route-card-departure-item {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: #273350;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.route-card-departure-item:hover {
+  background-color: rgba(39, 51, 80, 0.05);
+}
+
+.route-card-departure-item:first-child {
+  border-radius: 8px 8px 0 0;
+}
+
+.route-card-departure-item:last-child {
+  border-radius: 0 0 8px 8px;
+}
+
+.route-card-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.route-card-input {
+  width: 100%;
+  padding: 10px 48px 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(39, 51, 80, 0.2);
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+  background-color: #ffffff;
+  color: #273350;
+}
+
+.route-card-input:focus {
+  border-color: #273350;
+}
+
+.route-card-input::placeholder {
+  color: rgba(39, 51, 80, 0.4);
+}
+
+.route-card-voice-button {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(39, 51, 80, 0.6);
+  transition: color 0.2s ease;
+}
+
+.route-card-voice-button:hover {
+  color: #ff4b4b;
+}
+
+.route-card-destination-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.route-card-destination-input {
+  width: 100%;
+  padding: 10px 40px 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(39, 51, 80, 0.2);
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+  background-color: #ffffff;
+  color: #273350;
+}
+
+.route-card-destination-input:focus {
+  border-color: #273350;
+}
+
+.route-card-destination-input::placeholder {
+  color: rgba(39, 51, 80, 0.4);
+}
+
+.route-card-destination-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(39, 51, 80, 0.6);
+  transition: color 0.2s ease;
+}
+
+.route-card-destination-clear:hover {
+  color: #273350;
+}
+
+.route-card-destination-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 6px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  max-height: 260px;
+  overflow-y: auto;
+  z-index: 1001;
+  border: 1px solid rgba(39, 51, 80, 0.1);
+}
+
+.route-card-destination-item {
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.route-card-destination-item:hover {
+  background: rgba(39, 51, 80, 0.04);
+}
+
+.route-card-destination-item:first-child {
+  border-radius: 12px 12px 0 0;
+}
+
+.route-card-destination-item:last-child {
+  border-radius: 0 0 12px 12px;
+}
+
+.route-card-destination-item-name {
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #273350;
+}
+
+.route-card-destination-item-address {
+  margin-top: 2px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 12px;
+  color: rgba(39, 51, 80, 0.6);
+}
+
+.route-card-footer {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 16px;
+  border-top: 1px solid rgba(39, 51, 80, 0.1);
+}
+
+.route-card-select-button {
+  width: 100%;
+  padding: 12px 20px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #4CAF50, #66BB6A);
+  color: #ffffff;
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(76, 175, 80, 0.4);
+  transition: all 0.2s ease;
+}
+
+.route-card-build-button {
+  width: 100%;
+  padding: 12px 20px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #ff4b4b, #ff8c5f);
+  color: #ffffff;
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(255, 75, 75, 0.45);
+  transition: all 0.2s ease;
+}
+
+.route-card-build-button:disabled {
+  background: rgba(39, 51, 80, 0.2);
+  color: rgba(39, 51, 80, 0.4);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.route-card-select-button:hover {
+  box-shadow: 0 6px 18px rgba(76, 175, 80, 0.5);
+  transform: translateY(-1px);
+}
+
+.route-card-build-button:hover:not(:disabled) {
+  box-shadow: 0 6px 18px rgba(255, 75, 75, 0.5);
+  transform: translateY(-1px);
+}
+
+.route-card-select-button:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.4);
+}
+
+.route-card-build-button:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(255, 75, 75, 0.4);
 }
 
 .detail-page {
