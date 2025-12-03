@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { socialObjects } from "../../data/socialObjects";
 import { CATEGORY_COLORS, CATEGORY_ICONS, TULA_CENTER } from "../../utils/mapConfig";
 
+// Функция для проверки, находится ли координата в границах Тульской области
+const isInTulaBounds = (coords: [number, number], bounds: [[number, number], [number, number]] | null): boolean => {
+  if (!bounds) return false;
+  const [[minLng, minLat], [maxLng, maxLat]] = bounds;
+  const [lng, lat] = coords;
+  return lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat;
+};
+
 declare global {
   interface Window {
     ymaps3: any;
@@ -13,15 +21,23 @@ interface YandexMapProps {
   selectedObjectId: string | null;
   onSelectObject: (id: string | null) => void;
   selectedCategories: Set<string>;
+  centerOnUserLocation?: boolean;
+  onUserLocationCentered?: () => void;
 }
 
-export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories }: YandexMapProps) {
+export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories, centerOnUserLocation, onUserLocationCentered }: YandexMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const clustererRef = useRef<any>(null);
   const featuresRef = useRef<any[]>([]);
+  const minZoomRef = useRef<number | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [userLocation, setUserLocation] = useState<[number, number] | null>(null); // [lng, lat]
+  const [showLocationNotification, setShowLocationNotification] = useState(false);
+  const userLocationMarkerRef = useRef<any>(null);
+  const featuresLayerRef = useRef<any>(null);
+  const tulaBoundsRef = useRef<[[number, number], [number, number]] | null>(null);
 
   useEffect(() => {
     let destroyed = false;
@@ -63,6 +79,7 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
         map.addChild(new YMapDefaultSchemeLayer());
         const featuresLayer = new YMapDefaultFeaturesLayer({ zIndex: 1800 });
         map.addChild(featuresLayer);
+        featuresLayerRef.current = featuresLayer;
 
         // Функция для скрытия элементов Яндекс Карт после загрузки
         const hideYandexElements = () => {
@@ -258,7 +275,7 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
                     stroke: [{ width: 3, color: "#ff4b4b" }]
                   }
                 : {
-                    fill: "rgba(255,255,255,1)",
+                    fill: "#b4b5be",
                     stroke: [{ width: 1, color: "#cccccc" }]
                   }
             });
@@ -286,17 +303,21 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
           ];
         }
 
+        // Сохраняем границы для проверки местоположения пользователя
+        tulaBoundsRef.current = tulaBounds;
+
         // Устанавливаем границы карты по реальной (или приблизительной) Туле
         map.setLocation({
           bounds: tulaBounds,
           duration: 500
         });
 
+        // Флаг для отслеживания, что границы установлены
+        let boundsSet = false;
+
         // Сохраняем настройки после установки границ
         const setDefaultZoom = () => {
-          // На v3 жесткое ограничение области и зума даёт дёргания при перетаскивании,
-          // поэтому оставляем только начальную установку границ, а дальше даём карте
-          // свободно двигаться и масштабироваться.
+          boundsSet = true; // Помечаем, что границы установлены
           // Карта полностью настроена
           setIsLoaded(true);
           
@@ -470,10 +491,165 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
         });
         map.addChild(mapClickListener);
         
+        // Ограничиваем передвижение карты пределами первоначальных границ (tulaBounds) и зум
+        const panLimitListener = new YMapListener({
+          layerId: 'any',
+          onUpdate: (event: any) => {
+            if (!tulaBounds || !event.location?.center) return;
+            
+            const [[minLng, minLat], [maxLng, maxLat]] = tulaBounds;
+            const [lng, lat] = event.location.center; // [lng, lat]
+            const currentZoom = event.location.zoom;
+            
+            // Сохраняем минимальный зум только после того, как границы установлены
+            // и это первое обновление после установки границ
+            if (boundsSet && minZoomRef.current === null && currentZoom != null) {
+              minZoomRef.current = currentZoom;
+              console.log('Минимальный зум установлен:', currentZoom);
+            }
+            
+            let needsUpdate = false;
+            let clampedLng = lng;
+            let clampedLat = lat;
+            let clampedZoom = currentZoom;
+            
+            // Ограничиваем передвижение
+            clampedLng = Math.min(Math.max(lng, minLng), maxLng);
+            clampedLat = Math.min(Math.max(lat, minLat), maxLat);
+            
+            if (clampedLng !== lng || clampedLat !== lat) {
+              needsUpdate = true;
+            }
+            
+            // Ограничиваем зум - не позволяем отдалиться дальше минимального
+            if (minZoomRef.current !== null && currentZoom != null && currentZoom < minZoomRef.current) {
+              clampedZoom = minZoomRef.current;
+              needsUpdate = true;
+            }
+            
+            // Если нужно исправить позицию или зум - обновляем
+            if (needsUpdate) {
+              map.setLocation({
+                center: [clampedLng, clampedLat],
+                zoom: clampedZoom,
+                duration: 0
+              });
+            }
+          }
+        });
+        map.addChild(panLimitListener);
+        
         // Скрываем элементы Яндекс Карт периодически
         setTimeout(() => {
           hideYandexElements();
         }, 1500);
+
+        // Функция для получения геопозиции пользователя
+        const getUserLocation = () => {
+          if (!navigator.geolocation) {
+            console.warn('Геолокация не поддерживается вашим браузером');
+            return;
+          }
+
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              const { latitude, longitude } = position.coords;
+              // В API v3 координаты в формате [lng, lat]
+              let coords: [number, number] = [longitude, latitude];
+              
+              // Проверяем, находится ли пользователь в границах Тульской области
+              if (!isInTulaBounds(coords, tulaBoundsRef.current)) {
+                // Если нет - устанавливаем координаты на центр Тулы
+                // TULA_CENTER в формате [lat, lng], преобразуем в [lng, lat]
+                coords = [TULA_CENTER[1], TULA_CENTER[0]];
+                setShowLocationNotification(true);
+                // Скрываем уведомление через 5 секунд
+                setTimeout(() => {
+                  setShowLocationNotification(false);
+                }, 5000);
+              }
+              
+              setUserLocation(coords);
+              
+              // Добавляем маркер местоположения пользователя
+              if (mapRef.current && featuresLayerRef.current) {
+                const { YMapMarker } = window.ymaps3;
+                
+                // Удаляем старый маркер, если есть
+                if (userLocationMarkerRef.current) {
+                  try {
+                    featuresLayerRef.current.removeChild(userLocationMarkerRef.current);
+                  } catch (e) {
+                    // Игнорируем ошибки
+                  }
+                }
+
+                // Создаем кастомный HTML элемент для маркера местоположения
+                const locationMarkerElement = document.createElement('div');
+                locationMarkerElement.className = 'user-location-marker';
+                locationMarkerElement.style.cssText = 'width: 24px; height: 24px; cursor: pointer; position: absolute; left: -12px; top: -12px; pointer-events: auto !important; z-index: 2000; user-select: none;';
+                
+                const outerCircle = document.createElement('div');
+                outerCircle.style.cssText = 'width: 24px; height: 24px; border-radius: 50%; background-color: rgba(255, 75, 75, 0.2); border: 2px solid #ff4b4b; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); animation: pulse 2s infinite;';
+                
+                const innerCircle = document.createElement('div');
+                innerCircle.style.cssText = 'width: 12px; height: 12px; border-radius: 50%; background-color: #ff4b4b; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); box-shadow: 0 2px 4px rgba(0,0,0,0.3);';
+                
+                locationMarkerElement.appendChild(outerCircle);
+                locationMarkerElement.appendChild(innerCircle);
+
+                // Добавляем CSS анимацию для пульсации, если её еще нет
+                if (!document.getElementById('user-location-pulse-animation')) {
+                  const style = document.createElement('style');
+                  style.id = 'user-location-pulse-animation';
+                  style.textContent = `
+                    @keyframes pulse {
+                      0% {
+                        transform: translate(-50%, -50%) scale(1);
+                        opacity: 1;
+                      }
+                      50% {
+                        transform: translate(-50%, -50%) scale(1.5);
+                        opacity: 0.5;
+                      }
+                      100% {
+                        transform: translate(-50%, -50%) scale(1);
+                        opacity: 1;
+                      }
+                    }
+                  `;
+                  document.head.appendChild(style);
+                }
+
+                const locationMarker = new YMapMarker(
+                  {
+                    coordinates: coords,
+                    properties: {
+                      type: 'userLocation'
+                    }
+                  },
+                  locationMarkerElement
+                );
+
+                featuresLayerRef.current.addChild(locationMarker);
+                userLocationMarkerRef.current = locationMarker;
+              }
+            },
+            (error) => {
+              console.warn('Ошибка получения геопозиции:', error.message);
+            },
+            {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0
+            }
+          );
+        };
+
+        // Автоматически запрашиваем геопозицию при загрузке карты
+        setTimeout(() => {
+          getUserLocation();
+        }, 1000);
       } catch (error) {
         console.error('Ошибка инициализации карты:', error);
         setIsLoaded(true);
@@ -521,12 +697,22 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
       }
       if (mapRef.current) {
         try {
+          // Удаляем маркер местоположения пользователя
+          if (userLocationMarkerRef.current && featuresLayerRef.current) {
+            try {
+              featuresLayerRef.current.removeChild(userLocationMarkerRef.current);
+            } catch (e) {
+              // Игнорируем ошибки
+            }
+          }
           mapRef.current.destroy();
         } catch (e) {
           // Игнорируем ошибки
         }
         mapRef.current = null;
       }
+      userLocationMarkerRef.current = null;
+      featuresLayerRef.current = null;
     };
   }, [onSelectObject]);
 
@@ -641,15 +827,158 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
     });
   }, [selectedObjectId, isLoaded]);
 
+  // Запрашиваем геопозицию при нажатии на кнопку
+  useEffect(() => {
+    if (centerOnUserLocation && isLoaded) {
+      const getUserLocation = () => {
+        if (!navigator.geolocation) {
+          console.warn('Геолокация не поддерживается вашим браузером');
+          if (onUserLocationCentered) {
+            onUserLocationCentered();
+          }
+          return;
+        }
+
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              const { latitude, longitude } = position.coords;
+              // В API v3 координаты в формате [lng, lat]
+              let coords: [number, number] = [longitude, latitude];
+              
+              // Проверяем, находится ли пользователь в границах Тульской области
+              if (!isInTulaBounds(coords, tulaBoundsRef.current)) {
+                // Если нет - устанавливаем координаты на центр Тулы
+                // TULA_CENTER в формате [lat, lng], преобразуем в [lng, lat]
+                coords = [TULA_CENTER[1], TULA_CENTER[0]];
+                setShowLocationNotification(true);
+                // Скрываем уведомление через 5 секунд
+                setTimeout(() => {
+                  setShowLocationNotification(false);
+                }, 5000);
+              }
+              
+              setUserLocation(coords);
+            
+            // Добавляем маркер местоположения пользователя
+            if (mapRef.current && featuresLayerRef.current && window.ymaps3) {
+              const { YMapMarker } = window.ymaps3;
+              
+              // Удаляем старый маркер, если есть
+              if (userLocationMarkerRef.current) {
+                try {
+                  featuresLayerRef.current.removeChild(userLocationMarkerRef.current);
+                } catch (e) {
+                  // Игнорируем ошибки
+                }
+              }
+
+              // Создаем кастомный HTML элемент для маркера местоположения
+              const locationMarkerElement = document.createElement('div');
+              locationMarkerElement.className = 'user-location-marker';
+              locationMarkerElement.style.cssText = 'width: 24px; height: 24px; cursor: pointer; position: absolute; left: -12px; top: -12px; pointer-events: auto !important; z-index: 2000; user-select: none;';
+              
+              const outerCircle = document.createElement('div');
+              outerCircle.style.cssText = 'width: 24px; height: 24px; border-radius: 50%; background-color: rgba(255, 75, 75, 0.2); border: 2px solid #ff4b4b; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); animation: pulse 2s infinite;';
+              
+              const innerCircle = document.createElement('div');
+              innerCircle.style.cssText = 'width: 12px; height: 12px; border-radius: 50%; background-color: #ff4b4b; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); box-shadow: 0 2px 4px rgba(0,0,0,0.3);';
+              
+              locationMarkerElement.appendChild(outerCircle);
+              locationMarkerElement.appendChild(innerCircle);
+
+              // Добавляем CSS анимацию для пульсации, если её еще нет
+              if (!document.getElementById('user-location-pulse-animation')) {
+                const style = document.createElement('style');
+                style.id = 'user-location-pulse-animation';
+                style.textContent = `
+                  @keyframes pulse {
+                    0% {
+                      transform: translate(-50%, -50%) scale(1);
+                      opacity: 1;
+                    }
+                    50% {
+                      transform: translate(-50%, -50%) scale(1.5);
+                      opacity: 0.5;
+                    }
+                    100% {
+                      transform: translate(-50%, -50%) scale(1);
+                      opacity: 1;
+                    }
+                  }
+                `;
+                document.head.appendChild(style);
+              }
+
+              const locationMarker = new YMapMarker(
+                {
+                  coordinates: coords,
+                  properties: {
+                    type: 'userLocation'
+                  }
+                },
+                locationMarkerElement
+              );
+
+              featuresLayerRef.current.addChild(locationMarker);
+              userLocationMarkerRef.current = locationMarker;
+            }
+
+            // Центрируем карту на местоположении пользователя
+            if (mapRef.current) {
+              mapRef.current.setLocation({
+                center: coords,
+                zoom: 15,
+                duration: 500
+              });
+            }
+
+            if (onUserLocationCentered) {
+              onUserLocationCentered();
+            }
+          },
+          (error) => {
+            console.warn('Ошибка получения геопозиции:', error.message);
+            if (onUserLocationCentered) {
+              onUserLocationCentered();
+            }
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          }
+        );
+      };
+
+      getUserLocation();
+    }
+  }, [centerOnUserLocation, isLoaded, onUserLocationCentered]);
+
   return (
-    <div 
-      ref={mapContainerRef} 
-      className="map-root" 
-      style={{ 
-        opacity: isLoaded ? 1 : 0,
-        transition: 'opacity 0.3s ease-in-out',
-        pointerEvents: isLoaded ? 'auto' : 'none'
-      }} 
-    />
+    <>
+      {showLocationNotification && (
+        <div className="location-notification">
+          <div className="location-notification-content">
+            <span>Вы находитесь вне Тульской области. Показано местоположение в центре Тулы.</span>
+            <button
+              className="location-notification-close"
+              onClick={() => setShowLocationNotification(false)}
+              aria-label="Закрыть"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+      <div 
+        ref={mapContainerRef} 
+        className="map-root" 
+        style={{ 
+          opacity: isLoaded ? 1 : 0,
+          transition: 'opacity 0.3s ease-in-out',
+          pointerEvents: isLoaded ? 'auto' : 'none'
+        }} 
+      />
+    </>
   );
 }

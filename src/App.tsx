@@ -15,6 +15,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>("main");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [centerOnUserLocation, setCenterOnUserLocation] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const categories = [
@@ -86,7 +87,7 @@ export default function App() {
                     </div>
                   )}
 
-                  {isSearchOpen ? (
+                  {isSearchOpen && (
                     <div className="app-header-search">
                       <div className="app-header-search-wrapper">
                         <input
@@ -106,11 +107,15 @@ export default function App() {
                           }}
                           aria-label="Закрыть поиск"
                         >
-                          <img src="/крестик.png" alt="Закрыть" className="app-header-search-close-icon" />
+                          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
                         </button>
                       </div>
                     </div>
-                  ) : (
+                  )}
+
+                  {!isSearchOpen && (
                     <button
                       type="button"
                       className="app-header-search-button"
@@ -118,8 +123,11 @@ export default function App() {
                         setIsSearchOpen(true);
                         setSearchQuery("");
                       }}
+                      aria-label="Поиск"
                     >
-                      <img src="/лупа.png" alt="Поиск" className="app-header-search-icon" />
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M21 21L15 15M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
                     </button>
                   )}
                 </div>
@@ -149,7 +157,20 @@ export default function App() {
                   selectedObjectId={selectedObjectId}
                   onSelectObject={setSelectedObjectId}
                   selectedCategories={selectedCategories}
+                  centerOnUserLocation={centerOnUserLocation}
+                  onUserLocationCentered={() => setCenterOnUserLocation(false)}
                 />
+                <button
+                  type="button"
+                  className="geolocation-button"
+                  onClick={() => setCenterOnUserLocation(true)}
+                  aria-label="Моё местоположение"
+                  title="Моё местоположение"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 8C9.79 8 8 9.79 8 12C8 14.21 9.79 16 12 16C14.21 16 16 14.21 16 12C16 9.79 14.21 8 12 8ZM20.94 11C20.48 6.83 17.17 3.52 13 3.06V1H11V3.06C6.83 3.52 3.52 6.83 3.06 11H1V13H3.06C3.52 17.17 6.83 20.48 11 20.94V23H13V20.94C17.17 20.48 20.48 17.17 20.94 13H23V11H20.94ZM12 19C8.13 19 5 15.87 5 12C5 8.13 8.13 5 12 5C15.87 5 19 8.13 19 12C19 15.87 15.87 19 12 19Z" fill="currentColor"/>
+                  </svg>
+                </button>
                 {selectedObject && (
                   <ObjectCard
                     object={selectedObject}
