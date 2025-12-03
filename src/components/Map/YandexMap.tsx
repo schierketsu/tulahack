@@ -15,7 +15,7 @@ interface YandexMapProps {
   selectedCategories: Set<string>;
 }
 
-export function YandexMap({ onSelectObject, selectedCategories }: YandexMapProps) {
+export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories }: YandexMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -72,7 +72,10 @@ export function YandexMap({ onSelectObject, selectedCategories }: YandexMapProps
             'a[href*="yandex.ru/legal"]',
             'a[href*="yandex.com/legal"]',
             'a[href*="maps.yandex.ru"]',
-            'a[href*="maps.yandex.com"]'
+            'a[href*="maps.yandex.com"]',
+            // Слои копирайтов в API v3
+            '[class*="copyright"]',
+            '[class*="Copyright"]'
           ];
           
           selectors.forEach(selector => {
@@ -88,6 +91,45 @@ export function YandexMap({ onSelectObject, selectedCategories }: YandexMapProps
               // Игнорируем ошибки
             }
           });
+
+          // Дополнительно скрываем любые небольшие элементы с текстом "Яндекс"
+          try {
+            const textElements = mapContainerRef.current.querySelectorAll('div, span, a');
+            textElements.forEach((el) => {
+              const text = (el.textContent || '').trim();
+              if (!text) return;
+
+              // Если в тексте есть слово "Яндекс", скрываем элемент
+              if (/яндекс/i.test(text)) {
+                const elHtml = el as HTMLElement;
+                // Не трогаем корневой контейнер карты
+                if (elHtml === mapContainerRef.current) return;
+                
+                elHtml.style.display = 'none';
+                elHtml.style.visibility = 'hidden';
+                elHtml.style.opacity = '0';
+                elHtml.style.pointerEvents = 'none';
+              }
+            });
+          } catch (e) {
+            // Игнорируем ошибки
+          }
+
+          // На всякий случай добавляем глобальный стиль для копирайтов v3
+          if (!document.getElementById('yandex-map-hide-copyright')) {
+            const style = document.createElement('style');
+            style.id = 'yandex-map-hide-copyright';
+            style.textContent = `
+              [class*="copyright"],
+              [class*="Copyright"] {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+              }
+            `;
+            document.head.appendChild(style);
+          }
         };
 
         // Ждем, пока подгрузится API 2.1 (ymaps) с границами регионов
@@ -579,6 +621,25 @@ export function YandexMap({ onSelectObject, selectedCategories }: YandexMapProps
         markersRef.current.push(marker);
       });
   }, [selectedCategories, isLoaded, onSelectObject]);
+
+  // Приближаем карту к выбранному объекту
+  useEffect(() => {
+    if (!selectedObjectId || !mapRef.current || !isLoaded) return;
+
+    const selectedObject = socialObjects.find(obj => obj.id === selectedObjectId);
+    if (!selectedObject) return;
+
+    // Координаты в формате [lat, lng], нужно преобразовать в [lng, lat] для API v3
+    const [lat, lng] = selectedObject.coordinates;
+    const coordinates = [lng, lat];
+
+    // Устанавливаем центр карты на выбранный объект с максимальным зумом
+    mapRef.current.setLocation({
+      center: coordinates,
+      zoom: 18, // Максимальный зум для детального просмотра
+      duration: 500
+    });
+  }, [selectedObjectId, isLoaded]);
 
   return (
     <div 

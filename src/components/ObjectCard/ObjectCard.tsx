@@ -3,10 +3,10 @@ import { SocialObject } from "../../types";
 interface ObjectCardProps {
   object: SocialObject;
   onClose: () => void;
-  onOpenDetails: (id: string) => void;
+  onBuildRoute: (id: string) => void;
 }
 
-export function ObjectCard({ object, onClose, onOpenDetails }: ObjectCardProps) {
+export function ObjectCard({ object, onClose, onBuildRoute }: ObjectCardProps) {
   return (
     <div className="object-card-overlay">
       <div className="object-card">
@@ -30,9 +30,9 @@ export function ObjectCard({ object, onClose, onOpenDetails }: ObjectCardProps) 
           <button
             type="button"
             className="object-card-button"
-            onClick={() => onOpenDetails(object.id)}
+            onClick={() => onBuildRoute(object.id)}
           >
-            Подробнее
+            Проложить маршрут
           </button>
         </div>
       </div>
