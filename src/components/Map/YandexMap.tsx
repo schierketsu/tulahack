@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { socialObjects } from "../../data/socialObjects";
+import { DisabilityType } from "../../types";
 import { CATEGORY_COLORS, CATEGORY_ICONS, TULA_CENTER } from "../../utils/mapConfig";
+import { getRoutePoints } from "../../utils/routeService";
 
 // Функция для проверки, находится ли координата в границах Тульской области
 const isInTulaBounds = (coords: [number, number], bounds: [[number, number], [number, number]] | null): boolean => {
@@ -21,6 +23,7 @@ interface YandexMapProps {
   selectedObjectId: string | null;
   onSelectObject: (id: string | null) => void;
   selectedCategories: Set<string>;
+  selectedDisabilities: Set<DisabilityType>;
   centerOnUserLocation?: boolean;
   onUserLocationCentered?: () => void;
   isSelectingFromMap?: boolean;
@@ -33,7 +36,7 @@ interface YandexMapProps {
   } | null;
 }
 
-export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories, centerOnUserLocation, onUserLocationCentered, isSelectingFromMap, selectedMapPoint, onMapPointSelected, route }: YandexMapProps) {
+export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories, selectedDisabilities, centerOnUserLocation, onUserLocationCentered, isSelectingFromMap, selectedMapPoint, onMapPointSelected, route }: YandexMapProps) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -364,7 +367,21 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
         clustererRef.current = markersCollection;
         featuresLayer.addChild(markersCollection);
 
-        // Функция для обновления маркеров на основе выбранных категорий
+        const isObjectAccessible = (obj: typeof socialObjects[number]): boolean | null => {
+          if (!selectedDisabilities || selectedDisabilities.size === 0) {
+            return null;
+          }
+
+          const a = obj.accessibility;
+          for (const d of selectedDisabilities) {
+            if (!a[d]) {
+              return false;
+            }
+          }
+          return true;
+        };
+
+        // Функция для обновления маркеров на основе выбранных категорий и профиля
         const updateMarkers = () => {
           if (!mapRef.current || !clustererRef.current) return;
           
@@ -386,7 +403,13 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
             .filter((obj) => selectedCategories.has(obj.category))
             .forEach((obj) => {
               const iconPath = CATEGORY_ICONS[obj.category] || '';
-              const color = CATEGORY_COLORS[obj.category] ?? "#ffffff";
+              const access = isObjectAccessible(obj);
+              const color =
+                access === null
+                  ? "#4CAF50"
+                  : access
+                  ? "#4CAF50"
+                  : "#F44336";
               
               if (!iconPath) {
                 return;
@@ -734,7 +757,7 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
     };
   }, [onSelectObject]);
 
-  // Обновляем маркеры при изменении выбранных категорий
+  // Обновляем маркеры при изменении выбранных категорий или профиля
   useEffect(() => {
     if (!mapRef.current || !isLoaded || !clustererRef.current) return;
     
@@ -754,12 +777,32 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
     // Группируем объекты по координатам для добавления смещения
     const coordinatesMap = new Map<string, number[]>();
     
+    const isObjectAccessible = (obj: typeof socialObjects[number]): boolean | null => {
+      if (!selectedDisabilities || selectedDisabilities.size === 0) {
+        return null;
+      }
+
+      const a = obj.accessibility;
+      for (const d of selectedDisabilities) {
+        if (!a[d]) {
+          return false;
+        }
+      }
+      return true;
+    };
+
     // Добавляем маркеры только для выбранных категорий
     socialObjects
       .filter((obj) => selectedCategories.has(obj.category))
       .forEach((obj) => {
         const iconPath = CATEGORY_ICONS[obj.category] || '';
-        const color = CATEGORY_COLORS[obj.category] ?? "#ffffff";
+        const access = isObjectAccessible(obj);
+        const color =
+          access === null
+            ? "#4CAF50"
+            : access
+            ? "#4CAF50"
+            : "#F44336";
         
         if (!iconPath) {
           return;
@@ -824,7 +867,7 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
         clustererRef.current.addChild(marker);
         markersRef.current.push(marker);
       });
-  }, [selectedCategories, isLoaded, onSelectObject]);
+  }, [selectedCategories, selectedDisabilities, isLoaded, onSelectObject]);
 
   // Приближаем карту к выбранному объекту
   useEffect(() => {
@@ -1080,69 +1123,106 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
         routeFrom = [TULA_CENTER[1], TULA_CENTER[0]]; // [lng, lat]
       }
 
-      // Создаем линию маршрута от начальной точки до конечной
-      try {
-        const routeFeature = new YMapFeature({
-          geometry: {
-            type: "LineString",
-            coordinates: [routeFrom, route.to]
-          },
-          style: {
-            stroke: [
-              {
-                width: 8,
-                color: "#ff0000"
-              }
-            ]
+      // Получаем маршрут по дорогам
+      getRoutePoints(routeFrom, route.to).then((routeCoordinates) => {
+        try {
+          // Если маршрут не получен, используем прямую линию как fallback
+          const coordinates = routeCoordinates || [routeFrom, route.to];
+
+          const routeFeature = new YMapFeature({
+            geometry: {
+              type: "LineString",
+              coordinates: coordinates
+            },
+            style: {
+              stroke: [
+                {
+                  width: 8,
+                  color: "#ff0000"
+                }
+              ]
+            }
+          });
+
+          if (featuresLayerRef.current) {
+            featuresLayerRef.current.addChild(routeFeature);
+            routeFeatureRef.current = routeFeature;
+
+            // Вычисляем границы маршрута для центрирования карты
+            let minLng = Math.min(...coordinates.map(c => c[0]));
+            let maxLng = Math.max(...coordinates.map(c => c[0]));
+            let minLat = Math.min(...coordinates.map(c => c[1]));
+            let maxLat = Math.max(...coordinates.map(c => c[1]));
+
+            // Вычисляем центр маршрута
+            const centerLng = (minLng + maxLng) / 2;
+            const centerLat = (minLat + maxLat) / 2;
+            
+            // Ограничиваем центр границами Тульской области, если они установлены
+            let finalCenter: [number, number] = [centerLng, centerLat];
+            if (tulaBoundsRef.current) {
+              const [[tulaMinLng, tulaMinLat], [tulaMaxLng, tulaMaxLat]] = tulaBoundsRef.current;
+              finalCenter = [
+                Math.max(tulaMinLng, Math.min(tulaMaxLng, centerLng)),
+                Math.max(tulaMinLat, Math.min(tulaMaxLat, centerLat))
+              ];
+            }
+            
+            // Вычисляем подходящий zoom на основе границ маршрута
+            const latDiff = maxLat - minLat;
+            const lngDiff = maxLng - minLng;
+            const maxDiff = Math.max(latDiff, lngDiff);
+            
+            let zoom = 15;
+            if (maxDiff > 0.1) zoom = 10;
+            else if (maxDiff > 0.05) zoom = 12;
+            else if (maxDiff > 0.01) zoom = 13;
+            else if (maxDiff > 0.005) zoom = 14;
+
+            // Ограничиваем минимальный zoom, чтобы карта не уходила слишком далеко
+            zoom = Math.max(zoom, 9);
+
+            if (mapRef.current) {
+              // Используем center и zoom, но ограничиваем границами области
+              mapRef.current.setLocation({
+                center: finalCenter,
+                zoom: zoom,
+                duration: 500
+              });
+            }
+          } else {
+            console.error("featuresLayerRef.current is null!");
           }
-        });
-
-        if (featuresLayerRef.current) {
-          featuresLayerRef.current.addChild(routeFeature);
-          routeFeatureRef.current = routeFeature;
-
-          // Вычисляем центр маршрута
-          const centerLng = (routeFrom[0] + route.to[0]) / 2;
-          const centerLat = (routeFrom[1] + route.to[1]) / 2;
-          
-          // Ограничиваем центр границами Тульской области, если они установлены
-          let finalCenter: [number, number] = [centerLng, centerLat];
-          if (tulaBoundsRef.current) {
-            const [[minLng, minLat], [maxLng, maxLat]] = tulaBoundsRef.current;
-            finalCenter = [
-              Math.max(minLng, Math.min(maxLng, centerLng)),
-              Math.max(minLat, Math.min(maxLat, centerLat))
-            ];
-          }
-          
-          // Вычисляем подходящий zoom
-          const latDiff = Math.abs(routeFrom[1] - route.to[1]);
-          const lngDiff = Math.abs(routeFrom[0] - route.to[0]);
-          const maxDiff = Math.max(latDiff, lngDiff);
-          
-          let zoom = 15;
-          if (maxDiff > 0.1) zoom = 10;
-          else if (maxDiff > 0.05) zoom = 12;
-          else if (maxDiff > 0.01) zoom = 13;
-          else if (maxDiff > 0.005) zoom = 14;
-
-          // Ограничиваем минимальный zoom, чтобы карта не уходила слишком далеко
-          zoom = Math.max(zoom, 9);
-
-          if (mapRef.current) {
-            // Используем center и zoom, но ограничиваем границами области
-            mapRef.current.setLocation({
-              center: finalCenter,
-              zoom: zoom,
-              duration: 500
-            });
-          }
-        } else {
-          console.error("featuresLayerRef.current is null!");
+        } catch (error) {
+          console.error("Error building route:", error);
         }
-      } catch (error) {
-        console.error("Error building route:", error);
-      }
+      }).catch((error) => {
+        console.error("Error getting route points:", error);
+        // В случае ошибки используем прямую линию
+        try {
+          const routeFeature = new YMapFeature({
+            geometry: {
+              type: "LineString",
+              coordinates: [routeFrom, route.to]
+            },
+            style: {
+              stroke: [
+                {
+                  width: 8,
+                  color: "#ff0000"
+                }
+              ]
+            }
+          });
+
+          if (featuresLayerRef.current) {
+            featuresLayerRef.current.addChild(routeFeature);
+            routeFeatureRef.current = routeFeature;
+          }
+        } catch (fallbackError) {
+          console.error("Error building fallback route:", fallbackError);
+        }
+      });
     }, 100);
 
     return () => {

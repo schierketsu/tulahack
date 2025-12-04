@@ -4,14 +4,14 @@ import { ObjectCard } from "./components/ObjectCard/ObjectCard";
 import { RouteCard } from "./components/RouteCard/RouteCard";
 import { RouteInfoModal } from "./components/RouteInfo/RouteInfoModal";
 import { useState, useRef, useEffect } from "react";
-import { SocialObject } from "./types";
+import { SocialObject, DisabilityType } from "./types";
 import { socialObjects } from "./data/socialObjects";
 import { CATEGORY_COLORS } from "./utils/mapConfig";
 
 export default function App() {
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
-    new Set(["healthcare", "culture", "social"])
+    new Set(["healthcare", "culture", "social", "market"])
   );
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("main");
@@ -27,13 +27,38 @@ export default function App() {
     destinationName: string;
   } | null>(null);
   const [isRouteInfoModalOpen, setIsRouteInfoModalOpen] = useState(false);
+  const [selectedDisabilities, setSelectedDisabilities] = useState<
+    Set<DisabilityType>
+  >(new Set());
+  const [profileTab, setProfileTab] = useState<"settings" | "achievements">(
+    "settings"
+  );
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const categories = [
     { id: "healthcare", name: "Здравоохранение", color: CATEGORY_COLORS.healthcare },
     { id: "culture", name: "Культура", color: CATEGORY_COLORS.culture },
-    { id: "social", name: "Социальные услуги", color: CATEGORY_COLORS.social }
+    { id: "social", name: "Социальные услуги", color: CATEGORY_COLORS.social },
+    { id: "market", name: "Рынок товаров и услуг", color: CATEGORY_COLORS.market }
   ];
+
+  const disabilityCards: { type: DisabilityType; label: string; icon: string }[] = [
+    { type: "vision", label: "Нарушения зрения", icon: "/профиль/глаз.png" },
+    { type: "hearing", label: "Нарушения слуха", icon: "/профиль/слух.png" },
+    { type: "wheelchair", label: "Кресло-коляска", icon: "/профиль/коляска.png" },
+    { type: "mobility", label: "Опорно-двигательный аппарат", icon: "/профиль/трость.png" },
+    { type: "mental", label: "Умственные нарушения", icon: "/профиль/мозг.png" }
+  ];
+
+  const toggleDisability = (type: DisabilityType) => {
+    const next = new Set(selectedDisabilities);
+    if (next.has(type)) {
+      next.delete(type);
+    } else {
+      next.add(type);
+    }
+    setSelectedDisabilities(next);
+  };
 
   const toggleCategory = (categoryId: string) => {
     const newCategories = new Set(selectedCategories);
@@ -85,7 +110,16 @@ export default function App() {
               <header className="app-header">
                 <div className="app-header-inner">
                   {!isSearchOpen && (
-                    <div className="app-header-left">
+                    <div
+                      className="app-header-left"
+                      onClick={() => {
+                        setActiveTab("main");
+                        setIsRouteCardOpen(false);
+                        setIsSelectingFromMap(false);
+                        setSelectedMapPoint(null);
+                        setSelectedObjectId(null);
+                      }}
+                    >
                       <img
                         src="/gerbtula.svg.png"
                         alt="Герб Тульской области"
@@ -164,115 +198,182 @@ export default function App() {
                 )}
               </header>
               <main className="map-container">
-                <YandexMap
-                  selectedObjectId={selectedObjectId}
-                  onSelectObject={setSelectedObjectId}
-                  selectedCategories={selectedCategories}
-                  centerOnUserLocation={centerOnUserLocation}
-                  onUserLocationCentered={() => setCenterOnUserLocation(false)}
-                  isSelectingFromMap={isSelectingFromMap}
-                  selectedMapPoint={selectedMapPoint}
-                  onMapPointSelected={setSelectedMapPoint}
-                  route={route}
-                />
-                <button
-                  type="button"
-                  className="geolocation-button"
-                  onClick={() => setCenterOnUserLocation(true)}
-                  aria-label="Моё местоположение"
-                  title="Моё местоположение"
-                >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 8C9.79 8 8 9.79 8 12C8 14.21 9.79 16 12 16C14.21 16 16 14.21 16 12C16 9.79 14.21 8 12 8ZM20.94 11C20.48 6.83 17.17 3.52 13 3.06V1H11V3.06C6.83 3.52 3.52 6.83 3.06 11H1V13H3.06C3.52 17.17 6.83 20.48 11 20.94V23H13V20.94C17.17 20.48 20.48 17.17 20.94 13H23V11H20.94ZM12 19C8.13 19 5 15.87 5 12C5 8.13 8.13 5 12 5C15.87 5 19 8.13 19 12C19 15.87 15.87 19 12 19Z" fill="currentColor"/>
-                  </svg>
-                </button>
-                {selectedObject && !isRouteCardOpen && (
-                  <ObjectCard
-                    object={selectedObject}
-                    onClose={() => setSelectedObjectId(null)}
-                    onBuildRoute={(id) => {
-                      const object = socialObjects.find((o) => o.id === id);
-                      if (!object) return;
+                {activeTab !== "profile" ? (
+                  <>
+                    <YandexMap
+                      selectedObjectId={selectedObjectId}
+                      onSelectObject={setSelectedObjectId}
+                      selectedCategories={selectedCategories}
+                      selectedDisabilities={selectedDisabilities}
+                      centerOnUserLocation={centerOnUserLocation}
+                      onUserLocationCentered={() => setCenterOnUserLocation(false)}
+                      isSelectingFromMap={isSelectingFromMap}
+                      selectedMapPoint={selectedMapPoint}
+                      onMapPointSelected={setSelectedMapPoint}
+                      route={route}
+                    />
+                    <button
+                      type="button"
+                      className="geolocation-button"
+                      onClick={() => setCenterOnUserLocation(true)}
+                      aria-label="Моё местоположение"
+                      title="Моё местоположение"
+                    >
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 8C9.79 8 8 9.79 8 12C8 14.21 9.79 16 12 16C14.21 16 16 14.21 16 12C16 9.79 14.21 8 12 8ZM20.94 11C20.48 6.83 17.17 3.52 13 3.06V1H11V3.06C6.83 3.52 3.52 6.83 3.06 11H1V13H3.06C3.52 17.17 6.83 20.48 11 20.94V23H13V20.94C17.17 20.48 20.48 17.17 20.94 13H23V11H20.94ZM12 19C8.13 19 5 15.87 5 12C5 8.13 8.13 5 12 5C15.87 5 19 8.13 19 12C19 15.87 15.87 19 12 19Z" fill="currentColor"/>
+                      </svg>
+                    </button>
+                    {selectedObject && !isRouteCardOpen && (
+                      <ObjectCard
+                        object={selectedObject}
+                        onClose={() => setSelectedObjectId(null)}
+                        selectedDisabilities={selectedDisabilities}
+                        onBuildRoute={(id) => {
+                          const object = socialObjects.find((o) => o.id === id);
+                          if (!object) return;
 
-                      // Координаты объекта в формате [lat, lon], преобразуем в [lng, lat]
-                      const destinationCoords: [number, number] = [
-                        object.coordinates[1], // lng
-                        object.coordinates[0]  // lat
-                      ];
-
-                      // Функция для построения маршрута
-                      const buildRouteFromLocation = (userCoords: [number, number]) => {
-                        setRoute({
-                          from: userCoords,
-                          to: destinationCoords,
-                          destinationName: object.name
-                        });
-                        setIsRouteInfoModalOpen(true);
-                        // Закрываем карточку объекта
-                        setSelectedObjectId(null);
-                      };
-
-                      // Если местоположение неизвестно, запрашиваем его
-                      if (!navigator.geolocation) {
-                        alert("Геолокация не поддерживается вашим браузером. Маршрут не может быть построен.");
-                        return;
-                      }
-
-                      navigator.geolocation.getCurrentPosition(
-                        (position) => {
-                          const coords: [number, number] = [
-                            position.coords.longitude,
-                            position.coords.latitude
+                          // Координаты объекта в формате [lat, lon], преобразуем в [lng, lat]
+                          const destinationCoords: [number, number] = [
+                            object.coordinates[1], // lng
+                            object.coordinates[0]  // lat
                           ];
-                          buildRouteFromLocation(coords);
-                        },
-                        (error) => {
-                          console.error("Ошибка получения геолокации:", error);
-                          alert("Не удалось определить ваше местоположение. Маршрут не может быть построен.");
-                        }
-                      );
-                    }}
-                  />
-                )}
-                {isRouteCardOpen && (
-                  <RouteCard
-                    onClose={() => {
-                      setIsRouteCardOpen(false);
-                      setActiveTab("main");
-                      setIsSelectingFromMap(false);
-                      setSelectedMapPoint(null);
-                      setRoute(null);
-                      setIsRouteInfoModalOpen(false);
-                    }}
-                    onSelectFromMap={(enabled) => {
-                      setIsSelectingFromMap(enabled);
-                      if (!enabled) {
-                        setSelectedMapPoint(null);
-                      }
-                    }}
-                    selectedMapPoint={selectedMapPoint}
-                    onSelectPoint={() => {
-                      // Точка выбрана, можно использовать selectedMapPoint
-                      console.log("Выбрана точка на карте:", selectedMapPoint);
-                      setIsSelectingFromMap(false);
-                    }}
-                    onBuildRoute={(from, to, destinationName) => {
-                      setRoute({ from, to, destinationName });
-                      setIsRouteCardOpen(false);
-                      setIsRouteInfoModalOpen(true);
-                    }}
-                  />
-                )}
-                {isRouteInfoModalOpen && route && (
-                  <RouteInfoModal
-                    destinationName={route.destinationName}
-                    from={route.from}
-                    to={route.to}
-                    onClose={() => {
-                      setIsRouteInfoModalOpen(false);
-                      setRoute(null);
-                    }}
-                  />
+
+                          // Функция для построения маршрута
+                          const buildRouteFromLocation = (userCoords: [number, number]) => {
+                            setRoute({
+                              from: userCoords,
+                              to: destinationCoords,
+                              destinationName: object.name
+                            });
+                            setIsRouteInfoModalOpen(true);
+                            // Закрываем карточку объекта
+                            setSelectedObjectId(null);
+                          };
+
+                          // Если местоположение неизвестно, запрашиваем его
+                          if (!navigator.geolocation) {
+                            alert("Геолокация не поддерживается вашим браузером. Маршрут не может быть построен.");
+                            return;
+                          }
+
+                          navigator.geolocation.getCurrentPosition(
+                            (position) => {
+                              const coords: [number, number] = [
+                                position.coords.longitude,
+                                position.coords.latitude
+                              ];
+                              buildRouteFromLocation(coords);
+                            },
+                            (error) => {
+                              console.error("Ошибка получения геолокации:", error);
+                              alert("Не удалось определить ваше местоположение. Маршрут не может быть построен.");
+                            }
+                          );
+                        }}
+                      />
+                    )}
+                    {isRouteCardOpen && (
+                      <RouteCard
+                        onClose={() => {
+                          setIsRouteCardOpen(false);
+                          setActiveTab("main");
+                          setIsSelectingFromMap(false);
+                          setSelectedMapPoint(null);
+                          setRoute(null);
+                          setIsRouteInfoModalOpen(false);
+                        }}
+                        onSelectFromMap={(enabled) => {
+                          setIsSelectingFromMap(enabled);
+                          if (!enabled) {
+                            setSelectedMapPoint(null);
+                          }
+                        }}
+                        selectedMapPoint={selectedMapPoint}
+                        onSelectPoint={() => {
+                          // Точка выбрана, можно использовать selectedMapPoint
+                          console.log("Выбрана точка на карте:", selectedMapPoint);
+                          setIsSelectingFromMap(false);
+                        }}
+                        onBuildRoute={(from, to, destinationName) => {
+                          setRoute({ from, to, destinationName });
+                          setIsRouteCardOpen(false);
+                          setIsRouteInfoModalOpen(true);
+                        }}
+                      />
+                    )}
+                    {isRouteInfoModalOpen && route && (
+                      <RouteInfoModal
+                        destinationName={route.destinationName}
+                        from={route.from}
+                        to={route.to}
+                        onClose={() => {
+                          setIsRouteInfoModalOpen(false);
+                          setRoute(null);
+                        }}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <div className="profile-page">
+                    <div className="profile-tabs">
+                      <button
+                        type="button"
+                        className={`profile-tab-button ${
+                          profileTab === "settings" ? "active" : ""
+                        }`}
+                        onClick={() => setProfileTab("settings")}
+                      >
+                        Настройки
+                      </button>
+                      <button
+                        type="button"
+                        className={`profile-tab-button ${
+                          profileTab === "achievements" ? "active" : ""
+                        }`}
+                        onClick={() => setProfileTab("achievements")}
+                      >
+                        Достижения
+                      </button>
+                    </div>
+
+                    {profileTab === "settings" && (
+                      <div className="profile-section">
+                        <div className="route-card-label">
+                          Отметьте ваши особенности здоровья
+                        </div>
+                        <div className="profile-tiles">
+                          {disabilityCards.map((card) => (
+                            <button
+                              key={card.type}
+                              type="button"
+                              className={`profile-tile ${
+                                selectedDisabilities.has(card.type) ? "active" : ""
+                              }`}
+                              onClick={() => toggleDisability(card.type)}
+                            >
+                              <div className="profile-tile-icon-wrapper">
+                                <img
+                                  src={card.icon}
+                                  alt={card.label}
+                                  className="profile-tile-icon"
+                                />
+                              </div>
+                              <div className="profile-tile-label">{card.label}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {profileTab === "achievements" && (
+                      <div className="profile-section">
+                        <div className="route-card-label">Достижения</div>
+                        <div className="profile-achievements-placeholder">
+                          Здесь в будущем появятся ваши достижения.
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </main>
 
@@ -317,7 +418,7 @@ export default function App() {
                             <span
                               style={{
                                 color: selectedCategories.has(category.id)
-                                  ? category.color
+                                  ? "#273350"
                                   : "rgba(39, 51, 80, 0.5)"
                               }}
                             >
@@ -356,6 +457,8 @@ export default function App() {
                   onClick={() => {
                     setActiveTab("profile");
                     setIsRouteCardOpen(false);
+                    setSelectedObjectId(null);
+                    setProfileTab("settings");
                   }}
                 >
                   <img 

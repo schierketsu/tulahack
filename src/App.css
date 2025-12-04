@@ -113,11 +113,11 @@ body {
 .filter-dropdown-menu {
   position: absolute;
   bottom: 100%;
-  left: 0;
-  margin-bottom: 4px;
+  left: -4px;
+  margin-bottom: 20px;
   background-color: #ffffff;
-  border: 2px solid rgba(39, 51, 80, 0.15);
-  border-radius: 8px;
+  /* border: 2px solid rgba(39, 51, 80, 0.15); */
+  border-radius: 18px;
   box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
   z-index: 1000;
   min-width: 200px;
@@ -181,6 +181,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  cursor: pointer;
 }
 
 .app-header-logo {
@@ -567,6 +568,14 @@ body {
   color: #273350;
   line-height: 1.4;
   min-height: 20px;
+}
+
+.route-card-address {
+  font-size: 13px;
+  color: #666;
+  margin-top: 6px;
+  font-weight: 400;
+  line-height: 1.3;
 }
 
 .route-card-departure-dropdown {
@@ -1033,5 +1042,112 @@ body {
     right: 24px;
   }
 }
+.profile-page {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 16px;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
 
+.profile-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  justify-content: stretch;
+  width: 100%;
+}
 
+.profile-tab-button {
+  flex: 1 1 50%;
+  padding: 10px 0;
+  border-radius: 999px;
+  border: 1px solid rgba(39, 51, 80, 0.2);
+  background-color: #ffffff;
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+  color: #273350;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.profile-tab-button.active {
+  background: linear-gradient(135deg, #ff4b4b, #ff8c5f);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(255, 75, 75, 0.35);
+}
+
+.profile-section {
+  width: 100%;
+  max-width: 480px;
+  margin-top: 8px;
+}
+
+.profile-achievements-placeholder {
+  margin-top: 12px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  color: rgba(39, 51, 80, 0.6);
+}
+
+.profile-tiles {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.profile-tile {
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  border: 1px solid rgba(39, 51, 80, 0.15);
+  background-color: #ffffff;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.profile-tile:hover {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+.profile-tile.active {
+  border-color: #ff4b4b;
+  box-shadow: 0 4px 14px rgba(255, 75, 75, 0.3);
+}
+
+.profile-tile-icon-wrapper {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(255, 75, 75, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-tile-icon {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.profile-tile-label {
+  font-family: "Montserrat", sans-serif;
+  font-size: 13px;
+  text-align: center;
+  color: #273350;
+}
