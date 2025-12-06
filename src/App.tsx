@@ -213,6 +213,54 @@ export default function App() {
                       onMapPointSelected={setSelectedMapPoint}
                       route={route}
                     />
+                    <div className="map-filter-control filter-dropdown" ref={dropdownRef}>
+                      <button
+                        type="button"
+                        className={`map-filter-button ${isDropdownOpen ? "active" : ""}`}
+                        onClick={() => {
+                          setActiveTab("main");
+                          setIsRouteCardOpen(false);
+                          setIsDropdownOpen((prev) => !prev);
+                        }}
+                        aria-label="Фильтры"
+                        title="Фильтры"
+                      >
+                        <img src="/фильтр.png" alt="Фильтры" className="map-filter-icon" />
+                      </button>
+                      {isDropdownOpen && (
+                        <div className="filter-dropdown-menu">
+                          {categories.map((category) => (
+                            <label
+                              key={category.id}
+                              className="filter-dropdown-item"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleCategory(category.id);
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedCategories.has(category.id)}
+                                onChange={() => {}}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleCategory(category.id);
+                                }}
+                              />
+                              <span
+                                style={{
+                                  color: selectedCategories.has(category.id)
+                                    ? "#273350"
+                                    : "rgba(39, 51, 80, 0.5)"
+                                }}
+                              >
+                                {category.name}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <button
                       type="button"
                       className="geolocation-button"
@@ -382,77 +430,38 @@ export default function App() {
 
               <footer className="bottom-nav">
                 <div className="bottom-nav-section bottom-nav-section-left">
-                  <div className="filter-dropdown" ref={dropdownRef}>
-                    <button
-                      className={`bottom-nav-button ${activeTab === "main" ? "active" : ""}`}
-                      onClick={() => {
-                        setActiveTab("main");
-                        setIsDropdownOpen(!isDropdownOpen);
+                  <button
+                    className={`bottom-nav-section bottom-nav-section-left bottom-nav-button ${activeTab === "route" ? "active" : ""}`}
+                    onClick={() => {
+                      if (isRouteCardOpen) {
                         setIsRouteCardOpen(false);
-                      }}
-                    >
-                      <img 
-                        src="/фильтр.png" 
-                        alt="Фильтры" 
-                        className={`bottom-nav-icon ${activeTab === "main" ? "active" : ""}`}
-                      />
-                      <span>Фильтры</span>
-                    </button>
-                    {isDropdownOpen && (
-                      <div className="filter-dropdown-menu">
-                        {categories.map((category) => (
-                          <label
-                            key={category.id}
-                            className="filter-dropdown-item"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleCategory(category.id);
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedCategories.has(category.id)}
-                              onChange={() => {}}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleCategory(category.id);
-                              }}
-                            />
-                            <span
-                              style={{
-                                color: selectedCategories.has(category.id)
-                                  ? "#273350"
-                                  : "rgba(39, 51, 80, 0.5)"
-                              }}
-                            >
-                              {category.name}
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                        setActiveTab("main");
+                      } else {
+                        setActiveTab("route");
+                        setIsRouteCardOpen(true);
+                        setSelectedObjectId(null);
+                      }
+                    }}
+                  >
+                    <img 
+                      src="/маршрут.png" 
+                      alt="Маршрут" 
+                      className={`bottom-nav-icon ${activeTab === "route" ? "active" : ""}`}
+                    />
+                    <span>Маршрут</span>
+                  </button>
                 </div>
 
-                <button 
-                  className={`bottom-nav-section bottom-nav-section-center bottom-nav-button ${activeTab === "route" ? "active" : ""}`}
-                  onClick={() => {
-                    if (isRouteCardOpen) {
-                      setIsRouteCardOpen(false);
-                      setActiveTab("main");
-                    } else {
-                      setActiveTab("route");
-                      setIsRouteCardOpen(true);
-                      setSelectedObjectId(null);
-                    }
-                  }}
+                <button
+                  type="button"
+                  className="bottom-nav-section bottom-nav-section-center bottom-nav-button bottom-nav-placeholder"
+                  disabled
                 >
-                  <img 
-                    src="/маршрут.png" 
-                    alt="Маршрут" 
-                    className={`bottom-nav-icon ${activeTab === "route" ? "active" : ""}`}
+                  <img
+                    src="/gigachat.svg"
+                    alt="GigaChat"
+                    className="bottom-nav-icon"
                   />
-                  <span>Маршрут</span>
                 </button>
 
                 <button 

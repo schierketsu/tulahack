@@ -581,7 +581,7 @@ export function RouteCard({
               <span className="route-card-ai-spinner" aria-hidden="true" />
             ) : (
               <img
-                src="/giga2.svg"
+                src="/giga21.png"
                 alt="Giga"
                 width={18}
                 height={18}
@@ -590,10 +590,11 @@ export function RouteCard({
                   verticalAlign: "middle",
                   width: "18px",
                   height: "18px",
-                  transform: "scale(4)",
+                  objectFit: "contain",
+                  transform: "scale(2.6)",
                   transformOrigin: "center",
                   flexShrink: 0,
-                  marginLeft: "28px",
+                  marginLeft: "18px",
                 }}
               />
             )}
