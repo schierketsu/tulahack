@@ -4,10 +4,15 @@ const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { URL } = require("url");
 
 const JWT_SECRET = process.env.JWT_SECRET || "tulahack-secret";
 const PORT = process.env.PORT || 4000;
-const DB_PATH = path.join(__dirname, "data.sqlite");
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, "data.sqlite");
+const GIGACHAT_API_KEY = process.env.GIGACHAT_API_KEY;
+const GIGACHAT_URL =
+  process.env.GIGACHAT_URL ||
+  "https://foundation-models.api.cloud.ru/v1/chat/completions";
 
 const app = express();
 app.use(cors());
@@ -257,6 +262,38 @@ app.delete("/api/objects/:id/reviews/:reviewId", authMiddleware, (req, res) => {
 app.delete("/api/reviews/:reviewId", authMiddleware, (req, res) => {
   const { reviewId } = req.params;
   deleteReviewById(reviewId, null, req.user.id, res);
+});
+
+/**
+ * Proxy для GigaChat, чтобы ключ не уходил в браузер и обойти CORS.
+ */
+app.post("/api/gigachat/v1/chat/completions", async (req, res) => {
+  if (!GIGACHAT_API_KEY) {
+    return res.status(500).json({ error: "GIGACHAT_API_KEY не задан" });
+  }
+
+  try {
+    const upstream = await fetch(new URL(GIGACHAT_URL), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${GIGACHAT_API_KEY}`,
+      },
+      body: JSON.stringify(req.body || {}),
+    });
+
+    const contentType = upstream.headers.get("content-type") || "";
+    res.status(upstream.status);
+    if (contentType.includes("application/json")) {
+      const data = await upstream.json();
+      return res.json(data);
+    }
+    const text = await upstream.text();
+    return res.type("text/plain").send(text);
+  } catch (err) {
+    console.error("Gigachat proxy error:", err);
+    return res.status(500).json({ error: "Ошибка запроса к GigaChat" });
+  }
 });
 
 app.listen(PORT, () => {

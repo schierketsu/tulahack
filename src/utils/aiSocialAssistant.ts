@@ -1,6 +1,7 @@
 import { SocialObject } from "../types";
 
-const API_URL = "/api/gigachat/v1/chat/completions";
+const API_URL =
+  import.meta.env.VITE_GIGACHAT_URL || "/api/gigachat/v1/chat/completions";
 const API_KEY = import.meta.env.VITE_CLOUD_RU_API_KEY as string | undefined;
 
 export type ChatRole = "user" | "assistant";
@@ -88,8 +89,16 @@ export async function askSocialAssistant(
       }),
     });
 
+    const contentType = response.headers.get("content-type") || "";
+
     if (!response.ok) {
       console.error("Social assistant error:", response.status, await response.text());
+      return FALLBACK_TEXT.trim();
+    }
+
+    // Если бэкенд не отдал JSON (например, статика вернула index.html), уходим в фолбек.
+    if (!contentType.includes("application/json")) {
+      console.error("Social assistant error: non-JSON response", await response.text());
       return FALLBACK_TEXT.trim();
     }
 

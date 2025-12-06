@@ -1,7 +1,8 @@
 import { DisabilityType, SocialCategory, SocialObject } from "../types";
 
 // В dev уходим через прокси Vite (`/api/gigachat`) чтобы обойти CORS.
-const API_URL = "/api/gigachat/v1/chat/completions";
+const API_URL =
+  import.meta.env.VITE_GIGACHAT_URL || "/api/gigachat/v1/chat/completions";
 
 // В Vite переменные окружения, доступные на клиенте, должны начинаться с VITE_
 const API_KEY = import.meta.env.VITE_CLOUD_RU_API_KEY as string | undefined;
@@ -115,8 +116,15 @@ ${objects
       }),
     });
 
+    const contentType = response.headers.get("content-type") || "";
+
     if (!response.ok) {
       console.error("AI route helper error:", response.status, await response.text());
+      return null;
+    }
+
+    if (!contentType.includes("application/json")) {
+      console.error("AI route helper error: non-JSON response", await response.text());
       return null;
     }
 
