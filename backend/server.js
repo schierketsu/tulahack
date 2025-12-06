@@ -88,6 +88,36 @@ function countUserReviews(userId) {
   });
 }
 
+function deleteReviewById(reviewId, objectId, userId, res) {
+  const whereClause = objectId ? "id = ? AND object_id = ?" : "id = ?";
+  const params = objectId ? [reviewId, objectId] : [reviewId];
+
+  db.get(
+    `SELECT id, user_id, object_id FROM reviews WHERE ${whereClause}`,
+    params,
+    (err, row) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ error: "Ошибка поиска отзыва" });
+      }
+      if (!row) {
+        return res.status(404).json({ error: "Отзыв не найден" });
+      }
+      if (row.user_id !== userId) {
+        return res.status(403).json({ error: "Можно удалять только свои отзывы" });
+      }
+
+      db.run(`DELETE FROM reviews WHERE id = ?`, [reviewId], (delErr) => {
+        if (delErr) {
+          console.error(delErr);
+          return res.status(500).json({ error: "Ошибка удаления отзыва" });
+        }
+        res.json({ success: true, deletedId: reviewId });
+      });
+    }
+  );
+}
+
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { nickname, password } = req.body || {};
@@ -217,6 +247,16 @@ app.post("/api/objects/:id/reviews", authMiddleware, (req, res) => {
       });
     }
   );
+});
+
+app.delete("/api/objects/:id/reviews/:reviewId", authMiddleware, (req, res) => {
+  const { id: objectId, reviewId } = req.params;
+  deleteReviewById(reviewId, objectId, req.user.id, res);
+});
+
+app.delete("/api/reviews/:reviewId", authMiddleware, (req, res) => {
+  const { reviewId } = req.params;
+  deleteReviewById(reviewId, null, req.user.id, res);
 });
 
 app.listen(PORT, () => {

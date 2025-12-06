@@ -62,3 +62,35 @@ export async function createReview(
   return res.json() as Promise<any>;
 }
 
+export async function deleteReview(token: string, objectId: string, reviewId: number) {
+  const attempt = async (url: string) => {
+    const res = await fetch(url, {
+      method: "DELETE",
+      headers: jsonHeaders(token),
+    });
+    const contentType = res.headers.get("content-type") || "";
+    if (!res.ok) {
+      const prefix = `(${res.status}) `;
+      if (contentType.includes("application/json")) {
+        const data = await res.json();
+        throw new Error(prefix + (data?.error || "Не удалось удалить отзыв"));
+      }
+      const text = await res.text();
+      throw new Error(prefix + (text || "Не удалось удалить отзыв"));
+    }
+    if (contentType.includes("application/json")) {
+      return res.json() as Promise<any>;
+    }
+    return {} as any;
+  };
+
+  try {
+    return await attempt(`${API_URL}/api/objects/${objectId}/reviews/${reviewId}`);
+  } catch (err: any) {
+    if (String(err?.message || "").includes("(404)")) {
+      return await attempt(`${API_URL}/api/reviews/${reviewId}`);
+    }
+    throw err;
+  }
+}
+

@@ -1181,6 +1181,8 @@ body {
   background-color: #ffffff;
   font-family: "Montserrat", sans-serif;
   font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
   cursor: pointer;
   color: #273350;
   transition: all 0.2s ease;
@@ -1338,6 +1340,59 @@ body {
   color: rgba(39, 51, 80, 0.7);
   text-align: center;
   font-size: 13px;
+}
+
+.profile-reviews-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-review-card {
+  border: 1px solid rgba(39, 51, 80, 0.14);
+  border-radius: 12px;
+  padding: 12px;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.profile-review-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.profile-review-object {
+  font-family: "Montserrat", sans-serif;
+  font-weight: 700;
+  color: #273350;
+}
+
+.profile-review-address {
+  font-size: 12px;
+  color: rgba(39, 51, 80, 0.55);
+}
+
+.profile-review-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: #273350;
+}
+
+.profile-review-text {
+  margin-top: 6px;
+  color: rgba(39, 51, 80, 0.85);
+  font-size: 14px;
+}
+
+.profile-review-date {
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(39, 51, 80, 0.6);
 }
 
 .profile-context-fields {
@@ -1855,6 +1910,13 @@ body {
   gap: 8px;
 }
 
+.object-card-review-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .object-card-review-author {
   display: flex;
   align-items: center;
@@ -1882,6 +1944,30 @@ body {
 .object-card-review-rating {
   font-weight: 700;
   color: #ff4b4b;
+}
+
+.object-card-delete-review {
+  min-width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 1px solid rgba(39, 51, 80, 0.14);
+  background: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0 10px;
+}
+
+.object-card-delete-review:hover {
+  background: #f3f4f6;
+  border-color: rgba(39, 51, 80, 0.24);
+}
+
+.object-card-delete-review:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .object-card-review-text {
@@ -2024,8 +2110,9 @@ body {
   border: 1px solid transparent;
   background: linear-gradient(135deg, #ff4b4b, #ff8c5f);
   color: #ffffff;
-  font-weight: 500;
+  font-family: "Montserrat", sans-serif;
   font-size: 14px;
+  font-weight: 600;
   letter-spacing: 0.2px;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(255, 75, 75, 0.35);

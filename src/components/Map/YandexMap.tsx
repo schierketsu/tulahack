@@ -587,98 +587,76 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
         }, 1500);
 
         // Функция для получения геопозиции пользователя
+        const setCenteredUserLocation = () => {
+          const coords: [number, number] = [TULA_CENTER[1], TULA_CENTER[0]];
+          setShowLocationNotification(true);
+          setTimeout(() => setShowLocationNotification(false), 5000);
+          setUserLocation(coords);
+
+          if (mapRef.current && featuresLayerRef.current) {
+            const { YMapMarker } = window.ymaps3;
+
+            if (userLocationMarkerRef.current) {
+              try {
+                featuresLayerRef.current.removeChild(userLocationMarkerRef.current);
+              } catch (e) {
+                // ignore
+              }
+            }
+
+            const locationMarkerElement = document.createElement('div');
+            locationMarkerElement.className = 'user-location-marker';
+            locationMarkerElement.style.cssText = 'width: 24px; height: 24px; cursor: pointer; position: absolute; left: -12px; top: -12px; pointer-events: auto !important; z-index: 2000; user-select: none;';
+
+            const outerCircle = document.createElement('div');
+            outerCircle.style.cssText = 'width: 24px; height: 24px; border-radius: 50%; background-color: rgba(255, 75, 75, 0.2); border: 2px solid #ff4b4b; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); animation: pulse 2s infinite;';
+
+            const innerCircle = document.createElement('div');
+            innerCircle.style.cssText = 'width: 12px; height: 12px; border-radius: 50%; background-color: #ff4b4b; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); box-shadow: 0 2px 4px rgba(0,0,0,0.3);';
+
+            locationMarkerElement.appendChild(outerCircle);
+            locationMarkerElement.appendChild(innerCircle);
+
+            if (!document.getElementById('user-location-pulse-animation')) {
+              const style = document.createElement('style');
+              style.id = 'user-location-pulse-animation';
+              style.textContent = `
+                @keyframes pulse {
+                  0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+                  50% { transform: translate(-50%, -50%) scale(1.5); opacity: 0.5; }
+                  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+                }
+              `;
+              document.head.appendChild(style);
+            }
+
+            const locationMarker = new YMapMarker(
+              {
+                coordinates: coords,
+                properties: { type: 'userLocation' }
+              },
+              locationMarkerElement
+            );
+
+            featuresLayerRef.current.addChild(locationMarker);
+            userLocationMarkerRef.current = locationMarker;
+          }
+        };
+
         const getUserLocation = () => {
           if (!navigator.geolocation) {
             console.warn('Геолокация не поддерживается вашим браузером');
+            setCenteredUserLocation();
             return;
           }
 
           navigator.geolocation.getCurrentPosition(
-            (position) => {
-              const { latitude, longitude } = position.coords;
-              // В API v3 координаты в формате [lng, lat]
-              let coords: [number, number] = [longitude, latitude];
-              
-              // Проверяем, находится ли пользователь в границах Тульской области
-              if (!isInTulaBounds(coords, tulaBoundsRef.current)) {
-                // Если нет - устанавливаем координаты на центр Тулы
-                // TULA_CENTER в формате [lat, lng], преобразуем в [lng, lat]
-                coords = [TULA_CENTER[1], TULA_CENTER[0]];
-                setShowLocationNotification(true);
-                // Скрываем уведомление через 5 секунд
-                setTimeout(() => {
-                  setShowLocationNotification(false);
-                }, 5000);
-              }
-              
-              setUserLocation(coords);
-              
-              // Добавляем маркер местоположения пользователя
-              if (mapRef.current && featuresLayerRef.current) {
-                const { YMapMarker } = window.ymaps3;
-                
-                // Удаляем старый маркер, если есть
-                if (userLocationMarkerRef.current) {
-                  try {
-                    featuresLayerRef.current.removeChild(userLocationMarkerRef.current);
-                  } catch (e) {
-                    // Игнорируем ошибки
-                  }
-                }
-
-                // Создаем кастомный HTML элемент для маркера местоположения
-                const locationMarkerElement = document.createElement('div');
-                locationMarkerElement.className = 'user-location-marker';
-                locationMarkerElement.style.cssText = 'width: 24px; height: 24px; cursor: pointer; position: absolute; left: -12px; top: -12px; pointer-events: auto !important; z-index: 2000; user-select: none;';
-                
-                const outerCircle = document.createElement('div');
-                outerCircle.style.cssText = 'width: 24px; height: 24px; border-radius: 50%; background-color: rgba(255, 75, 75, 0.2); border: 2px solid #ff4b4b; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); animation: pulse 2s infinite;';
-                
-                const innerCircle = document.createElement('div');
-                innerCircle.style.cssText = 'width: 12px; height: 12px; border-radius: 50%; background-color: #ff4b4b; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); box-shadow: 0 2px 4px rgba(0,0,0,0.3);';
-                
-                locationMarkerElement.appendChild(outerCircle);
-                locationMarkerElement.appendChild(innerCircle);
-
-                // Добавляем CSS анимацию для пульсации, если её еще нет
-                if (!document.getElementById('user-location-pulse-animation')) {
-                  const style = document.createElement('style');
-                  style.id = 'user-location-pulse-animation';
-                  style.textContent = `
-                    @keyframes pulse {
-                      0% {
-                        transform: translate(-50%, -50%) scale(1);
-                        opacity: 1;
-                      }
-                      50% {
-                        transform: translate(-50%, -50%) scale(1.5);
-                        opacity: 0.5;
-                      }
-                      100% {
-                        transform: translate(-50%, -50%) scale(1);
-                        opacity: 1;
-                      }
-                    }
-                  `;
-                  document.head.appendChild(style);
-                }
-
-                const locationMarker = new YMapMarker(
-                  {
-                    coordinates: coords,
-                    properties: {
-                      type: 'userLocation'
-                    }
-                  },
-                  locationMarkerElement
-                );
-
-                featuresLayerRef.current.addChild(locationMarker);
-                userLocationMarkerRef.current = locationMarker;
-              }
+            () => {
+              setCenteredUserLocation();
             },
             (error) => {
               console.warn('Ошибка получения геопозиции:', error.message);
+              setCenteredUserLocation();
             },
             {
               enableHighAccuracy: true,
@@ -1244,7 +1222,7 @@ export function YandexMap({ selectedObjectId, onSelectObject, selectedCategories
       {showLocationNotification && (
         <div className="location-notification">
           <div className="location-notification-content">
-            <span>Вы находитесь вне Тульской области. Показано местоположение в центре Тулы.</span>
+            <span>В качестве тестирования геопозиция пользователя определена в центре Тулы.</span>
             <button
               className="location-notification-close"
               onClick={() => setShowLocationNotification(false)}

@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ThumbsUpDownIcon from "@mui/icons-material/ThumbsUpDown";
 import StarRateIcon from "@mui/icons-material/StarRate";
+import DeleteIcon from "@mui/icons-material/Delete";
 import { SocialObject, DisabilityType, Review, ReviewSummary, User } from "../../types";
 import {
   getObjectReviews,
   getObjectSummary,
   createReview,
+  deleteReview,
 } from "../../api";
 
 interface ObjectCardProps {
@@ -18,6 +20,17 @@ interface ObjectCardProps {
   currentUser?: User | null;
   onRequireAuth?: () => void;
   onReviewAdded?: () => void;
+  onUserReviewsUpdate?: (
+    reviews: {
+      id: number;
+      objectId: string;
+      objectName: string;
+      objectAddress: string;
+      rating: number;
+      text?: string;
+      created_at: string;
+    }[]
+  ) => void;
 }
 
 export function ObjectCard({
@@ -29,6 +42,7 @@ export function ObjectCard({
   currentUser,
   onRequireAuth,
   onReviewAdded,
+  onUserReviewsUpdate,
 }: ObjectCardProps) {
   const [summary, setSummary] = useState<ReviewSummary | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -38,6 +52,27 @@ export function ObjectCard({
   const [textValue, setTextValue] = useState<string>("");
   const [sendingReview, setSendingReview] = useState(false);
   const [isReviewsMode, setIsReviewsMode] = useState(false);
+  const [deletingReviewId, setDeletingReviewId] = useState<number | null>(null);
+
+  const syncUserReviews = (list: Review[]) => {
+    if (!onUserReviewsUpdate) return;
+    if (!currentUser) {
+      onUserReviewsUpdate([]);
+      return;
+    }
+    const own = list
+      .filter((rev) => rev.nickname === currentUser.nickname)
+      .map((rev) => ({
+        id: rev.id,
+        objectId: object.id,
+        objectName: object.name,
+        objectAddress: object.address,
+        rating: rev.rating,
+        text: rev.text,
+        created_at: rev.created_at,
+      }));
+    onUserReviewsUpdate(own);
+  };
 
   const loadReviews = async () => {
     try {
@@ -49,8 +84,10 @@ export function ObjectCard({
       ]);
       setSummary(summaryRes);
       setReviews(reviewsRes.reviews || []);
+      syncUserReviews(reviewsRes.reviews || []);
     } catch (err) {
-      setReviewsError("Не удалось загрузить отзывы");
+      // На старте не показываем пользовательское сообщение, чтобы не мешать открытию блока
+      console.error("Load reviews error", err);
     } finally {
       setLoadingReviews(false);
     }
@@ -82,6 +119,25 @@ export function ObjectCard({
       setReviewsError(err?.message || "Ошибка отправки отзыва");
     } finally {
       setSendingReview(false);
+    }
+  };
+
+  const handleDeleteReview = async (reviewId: number) => {
+    if (!authToken) {
+      onRequireAuth?.();
+      return;
+    }
+    try {
+      setDeletingReviewId(reviewId);
+      setReviewsError(null);
+      await deleteReview(authToken, object.id, reviewId);
+      await loadReviews();
+      onReviewAdded?.();
+    } catch (err: any) {
+      const msg = err?.message || "Не удалось удалить отзыв";
+      setReviewsError(msg.includes("(404)") ? "Отзыв не найден или уже удалён" : msg);
+    } finally {
+      setDeletingReviewId(null);
     }
   };
 
@@ -177,9 +233,21 @@ export function ObjectCard({
                           </div>
                         </div>
                       </div>
-                      <div className="object-card-review-rating">
-                        <StarRateIcon className="object-card-star" fontSize="small" />
-                        {rev.rating}
+                      <div className="object-card-review-actions">
+                        <div className="object-card-review-rating">
+                          <StarRateIcon className="object-card-star" fontSize="small" />
+                          {rev.rating}
+                        </div>
+                        {currentUser && rev.nickname === currentUser.nickname && (
+                          <button
+                            className="object-card-delete-review"
+                            type="button"
+                            onClick={() => handleDeleteReview(rev.id)}
+                            disabled={deletingReviewId === rev.id}
+                          >
+                            {deletingReviewId === rev.id ? "Удаление..." : <DeleteIcon fontSize="small" />}
+                          </button>
+                        )}
                       </div>
                     </div>
                     {rev.text && <div className="object-card-review-text">{rev.text}</div>}
@@ -187,7 +255,6 @@ export function ObjectCard({
                 ))}
             </div>
             <div className="object-card-review-form">
-              <div className="object-card-label">Оставить отзыв</div>
               <div className="object-card-form-row">
                 <label className="object-card-form-field">
                   Оценка
@@ -222,7 +289,7 @@ export function ObjectCard({
                   onClick={handleSendReview}
                   disabled={sendingReview}
                 >
-                  {currentUser ? "Отправить отзыв" : "Войти, чтобы оставить отзыв"}
+                  {currentUser ? "Опубликовать отзыв" : "Войти, чтобы оставить отзыв"}
                 </button>
                 <button
                   className="object-card-button secondary narrow"

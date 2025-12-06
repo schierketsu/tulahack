@@ -30,7 +30,7 @@ export function ChatAssistant({
     {
       role: "assistant",
       content:
-        "Я помогу разобраться с мерами поддержки семей с детьми и беременных. Укажите регион, возраст ребёнка и срок беременности — уточню, что положено и как оформить. Если что-то не знаю, спрошу дополнительно.",
+        "Привет! Я помогу по мерам поддержки, социальным вопросам и подбору подходящих социальных объектов. Укажите регион, возраст ребёнка и срок беременности (если актуально), либо задайте вопрос по социальной теме или объектам — подскажу, что доступно и как действовать. Если нужно, уточню детали.",
     },
   ]);
   const [draft, setDraft] = useState("");
@@ -112,18 +112,13 @@ export function ChatAssistant({
           <div className="chat-header-left">
             <img src="/gigachat.svg" alt="GigaChat" className="chat-header-icon" />
             <div>
-              <div className="chat-header-title">Гигачат. Ваш социальный помощник</div>
+              <div className="chat-header-title">Гигачат</div>
+              <div className="chat-header-subtitle">Ваш социальный помощник</div>
             </div>
           </div>
           <button type="button" className="chat-close" onClick={onClose} aria-label="Закрыть чат">
             ✕
           </button>
-        </div>
-
-        <div className="chat-context">
-          <div className="chat-context-hint">
-            Чат использует базу нормативных актов и регламентов. Если данных не хватает, он попросит уточнения.
-          </div>
         </div>
 
         <div className="chat-body" ref={scrollRef}>

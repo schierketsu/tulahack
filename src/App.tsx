@@ -5,14 +5,26 @@ import { ObjectCard } from "./components/ObjectCard/ObjectCard";
 import { RouteCard } from "./components/RouteCard/RouteCard";
 import { RouteInfoModal } from "./components/RouteInfo/RouteInfoModal";
 import { useState, useRef, useEffect } from "react";
-import { SocialObject, DisabilityType, User, UserStats } from "./types";
+import { SocialObject, DisabilityType, User, UserStats, Review } from "./types";
 import { socialObjects } from "./data/socialObjects";
 import { CATEGORY_COLORS } from "./utils/mapConfig";
 import { ChatAssistant } from "./components/ChatAssistant/ChatAssistant";
-import { login, register, me } from "./api";
+import { login, register, me, getObjectReviews, deleteReview } from "./api";
 import ExitToAppIcon from "@mui/icons-material/ExitToApp";
+import StarRateIcon from "@mui/icons-material/StarRate";
+import DeleteIcon from "@mui/icons-material/Delete";
 
 export default function App() {
+  type UserProfileReview = {
+    id: number;
+    objectId: string;
+    objectName: string;
+    objectAddress: string;
+    rating: number;
+    text?: string;
+    created_at: string;
+  };
+
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(
     new Set(["healthcare", "culture", "social", "market"])
@@ -54,6 +66,12 @@ export default function App() {
   });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
+  const [userReviewsProfile, setUserReviewsProfile] = useState<UserProfileReview[]>([]);
+  const [userReviewsLoading, setUserReviewsLoading] = useState(false);
+  const [userReviewsError, setUserReviewsError] = useState<string | null>(null);
+  const [deletingProfileReviewId, setDeletingProfileReviewId] = useState<number | null>(
+    null
+  );
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const categories = [
@@ -83,21 +101,21 @@ export default function App() {
       id: "achv-1",
       title: "Первый шаг",
       icon: "/достижения/1уровень.png",
-      condition: "Оставь 1 отзыв о посещённом объекте",
+      condition: "Оставь 1 отзыв",
       threshold: 1,
     },
     {
       id: "achv-2",
-      title: "Наставник",
+      title: "Новичок",
       icon: "/достижения/2ур.png",
       condition: "Оставь 10 отзывов",
       threshold: 10,
     },
     {
       id: "achv-3",
-      title: "Гид региона",
+      title: "Авантюрист",
       icon: "/достижения/3ур.png",
-      condition: "Оставь 25 отзывов и помоги другим найти поддержку",
+      condition: "Оставь 25 отзывов (обязательно справишься!)",
       threshold: 25,
     },
   ];
@@ -107,6 +125,88 @@ export default function App() {
   }));
   const level = userStats ? Math.floor(userStats.points / 100) + 1 : 1;
   const levelProgress = userStats ? Math.min(userStats.points % 100, 100) : 0;
+
+  const updateUserReviewsProfile = (objectId: string, reviews: UserProfileReview[]) => {
+    setUserReviewsProfile((prev) => {
+      const others = prev.filter((r) => r.objectId !== objectId);
+      return [...others, ...reviews].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    });
+  };
+
+  const loadUserReviewsProfile = async () => {
+    if (!currentUser) {
+      setUserReviewsProfile([]);
+      return;
+    }
+    try {
+      setUserReviewsLoading(true);
+      setUserReviewsError(null);
+      const results = await Promise.all(
+        socialObjects.map(async (obj) => {
+          try {
+            const res = await getObjectReviews(obj.id);
+            const own = (res.reviews || []).filter(
+              (rev) => rev.nickname === currentUser.nickname
+            );
+            return own.map((rev) => ({
+              id: rev.id,
+              objectId: obj.id,
+              objectName: obj.name,
+              objectAddress: obj.address,
+              rating: rev.rating,
+              text: rev.text,
+              created_at: rev.created_at,
+            }));
+          } catch {
+            return [];
+          }
+        })
+      );
+      const flat = results.flat();
+      setUserReviewsProfile(
+        flat.sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        )
+      );
+    } catch (err: any) {
+      setUserReviewsError(err?.message || "Не удалось загрузить ваши отзывы");
+    } finally {
+      setUserReviewsLoading(false);
+    }
+  };
+
+  const handleDeleteProfileReview = async (reviewId: number, objectId: string) => {
+    if (!authToken) {
+      setUserReviewsError("Войдите, чтобы управлять отзывами");
+      return;
+    }
+    try {
+      setDeletingProfileReviewId(reviewId);
+      setUserReviewsError(null);
+      await deleteReview(authToken, objectId, reviewId);
+      setUserReviewsProfile((prev) => prev.filter((r) => r.id !== reviewId));
+      await fetchMe(authToken);
+    } catch (err: any) {
+      const msg = err?.message || "Не удалось удалить отзыв";
+      setUserReviewsError(
+        msg.includes("(404)") ? "Отзыв не найден или уже удалён" : msg
+      );
+    } finally {
+      setDeletingProfileReviewId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (profileTab === "achievements" && currentUser) {
+      loadUserReviewsProfile();
+    }
+    if (!currentUser) {
+      setUserReviewsProfile([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileTab, currentUser]);
 
   const childAgeOptions = [
     "0–1 год",
@@ -168,6 +268,8 @@ export default function App() {
     setAuthToken(null);
     setCurrentUser(null);
     setUserStats(null);
+    setUserReviewsProfile([]);
+    setUserReviewsError(null);
     localStorage.removeItem("auth_token");
   };
 
@@ -438,6 +540,9 @@ export default function App() {
                             fetchMe(authToken);
                           }
                         }}
+                        onUserReviewsUpdate={(list) =>
+                          updateUserReviewsProfile(selectedObject.id, list)
+                        }
                         onBuildRoute={(id) => {
                           const object = socialObjects.find((o) => o.id === id);
                           if (!object) return;
@@ -790,6 +895,57 @@ export default function App() {
                         ) : (
                           <div className="achievement-guest-hint">
                             Вы увидите ачивки после авторизации
+                          </div>
+                        )}
+
+                        <div className="route-card-label" style={{ marginTop: 16 }}>
+                          Мои отзывы
+                        </div>
+                        {!currentUser ? (
+                          <div className="achievement-guest-hint">
+                            Войдите, чтобы увидеть ваши отзывы
+                          </div>
+                        ) : userReviewsLoading ? (
+                          <div className="achievement-guest-hint">Загрузка отзывов...</div>
+                        ) : userReviewsError ? (
+                          <div className="achievement-guest-hint">{userReviewsError}</div>
+                        ) : userReviewsProfile.length === 0 ? (
+                          <div className="achievement-guest-hint">
+                            Вы ещё не оставляли отзывы
+                          </div>
+                        ) : (
+                          <div className="profile-reviews-list">
+                            {userReviewsProfile.map((rev) => (
+                              <div key={rev.id} className="profile-review-card">
+                                <div className="profile-review-header">
+                                  <div>
+                                    <div className="profile-review-object">{rev.objectName}</div>
+                                    <div className="profile-review-address">{rev.objectAddress}</div>
+                                  </div>
+                                  <div className="object-card-review-actions">
+                                    <div className="profile-review-rating">
+                                      <StarRateIcon className="object-card-star" fontSize="small" />
+                                      {rev.rating}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="object-card-delete-review"
+                                      aria-label="Удалить отзыв"
+                                      onClick={() => handleDeleteProfileReview(rev.id, rev.objectId)}
+                                      disabled={deletingProfileReviewId === rev.id}
+                                    >
+                                      {deletingProfileReviewId === rev.id ? "Удаление..." : (
+                                        <DeleteIcon fontSize="small" />
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                                {rev.text && <div className="profile-review-text">{rev.text}</div>}
+                                <div className="profile-review-date">
+                                  {new Date(rev.created_at).toLocaleDateString()}
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
