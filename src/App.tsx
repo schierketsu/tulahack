@@ -309,7 +309,6 @@ export default function App() {
                         destinationName={route.destinationName}
                         from={route.from}
                         to={route.to}
-                        aiComment={route.aiComment}
                         onClose={() => {
                           setIsRouteInfoModalOpen(false);
                           setRoute(null);

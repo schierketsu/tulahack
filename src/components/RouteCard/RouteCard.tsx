@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import KeyboardVoiceIcon from "@mui/icons-material/KeyboardVoice";
 import { DisabilityType, SocialCategory, SocialObject } from "../../types";
 import { socialObjects } from "../../data/socialObjects";
 import { getAiRouteComment } from "../../utils/aiRouteAssistant";
+import { TULA_CENTER } from "../../utils/mapConfig";
 
 interface RouteCardProps {
   onClose: () => void;
@@ -32,6 +34,7 @@ export function RouteCard({
   const [searchQuery, setSearchQuery] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
 
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -120,6 +123,15 @@ export function RouteCard({
         setUserLocation(fromCoords);
       }
 
+      // Нормализуем старт: если мы вне Тулы или гео далёкое — ставим центр Тулы
+      const isInTulaBounds = (coords: [number, number]) => {
+        const [lng, lat] = coords;
+        return lng >= 35.5 && lng <= 39.5 && lat >= 53.0 && lat <= 54.8;
+      };
+      if (!isInTulaBounds(fromCoords)) {
+        fromCoords = [TULA_CENTER[1], TULA_CENTER[0]]; // [lng, lat]
+      }
+
       const normalizedQuery = (queryOverride ?? searchQuery).trim().toLowerCase();
       const tokens = normalizedQuery
         .split(/[^a-zA-Zа-яА-ЯёЁ0-9]+/)
@@ -199,10 +211,12 @@ export function RouteCard({
       };
 
       // Дополнительные интенты (приоритетные подтипы внутри категорий)
-      type IntentKey = "dental" | "library";
+      type IntentKey = "dental" | "library" | "headache" | "clinic";
       const intentLexicon: Record<IntentKey, string[]> = {
         dental: ["зуб", "зубы", "стоматолог", "стоматологич", "пломб", "кариес"],
         library: ["библиотек", "книга", "книг", "читать", "чтени", "читаль"],
+        headache: ["головн", "голова", "мигрен", "температур", "тошн", "головокруж"],
+        clinic: ["поликлиник", "больниц", "врач", "доктор", "медцентр", "больцу", "больцу", "больца", "к врачу"],
       };
 
       const detectIntents = (query: string, tokenList: string[]): Set<IntentKey> => {
@@ -253,6 +267,9 @@ export function RouteCard({
       const objectMatchesIntent = (obj: SocialObject, intents: Set<IntentKey>): boolean => {
         if (intents.size === 0) return false;
         const text = `${obj.name} ${obj.address} ${obj.description}`.toLowerCase();
+        const isDental = ["зуб", "стоматолог", "стоматологич", "кариес", "пломб", "ортодонт"].some((t) =>
+          text.includes(t)
+        );
         if (intents.has("dental")) {
           if (["зуб", "стоматолог", "стоматологич", "кариес", "пломб"].some((t) => text.includes(t))) {
             return true;
@@ -260,6 +277,17 @@ export function RouteCard({
         }
         if (intents.has("library")) {
           if (["библиотек", "книга", "читаль", "чтен"].some((t) => text.includes(t))) {
+            return true;
+          }
+        }
+        if (intents.has("headache")) {
+          // Для головной боли — предпочитаем любые мед. учреждения, кроме стоматологии
+          if (obj.category === "healthcare" && !isDental) {
+            return true;
+          }
+        }
+        if (intents.has("clinic")) {
+          if (obj.category === "healthcare") {
             return true;
           }
         }
@@ -271,36 +299,93 @@ export function RouteCard({
         const nameScore = textMatchesTokens(obj.name) * 3;
         const addrScore = textMatchesTokens(obj.address) * 2;
         const descScore = textMatchesTokens(obj.description);
-        const intentBonus = objectMatchesIntent(obj, intentsDetected) ? 10 : 0;
+        const isDental = ["зуб", "стоматолог", "стоматологич", "кариес", "пломб", "ортодонт"].some((t) =>
+          `${obj.name} ${obj.address} ${obj.description}`.toLowerCase().includes(t)
+        );
+        const matchesIntent = objectMatchesIntent(obj, intentsDetected);
+        let intentBonus = matchesIntent ? 10 : 0;
+        // При головной боли/запросе врача штрафуем стоматологию, поощряем медучреждения
+        if (intentsDetected.has("headache") || intentsDetected.has("clinic")) {
+          if (isDental) intentBonus -= 8;
+          if (obj.category === "healthcare" && !isDental) intentBonus += 4;
+        }
         return nameScore + addrScore + descScore + intentBonus;
       };
 
       // Фильтруем по категориям, доступности и (если есть) текстовому запросу пользователя
       const detectedCategories = detectCategories(normalizedQuery, tokens);
-      const baseCategories =
-        selectedCategories && selectedCategories.size > 0
-          ? selectedCategories
-          : new Set<SocialCategory | string>(["healthcare", "culture", "social", "market"]);
-      const allowedCategories =
-        detectedCategories.size > 0
-          ? (detectedCategories as Set<SocialCategory | string>)
-          : baseCategories;
+      let allowedCategories: Set<SocialCategory | string>;
+
+      // Для головной боли/запроса врача — принудительно только healthcare
+      if (intentsDetected.has("headache") || intentsDetected.has("clinic")) {
+        allowedCategories = new Set<SocialCategory | string>(["healthcare"]);
+      } else {
+        const baseCategories =
+          selectedCategories && selectedCategories.size > 0
+            ? selectedCategories
+            : new Set<SocialCategory | string>(["healthcare", "culture", "social", "market"]);
+        allowedCategories =
+          detectedCategories.size > 0
+            ? (detectedCategories as Set<SocialCategory | string>)
+            : baseCategories;
+      }
 
       const base = socialObjects.filter((obj) => allowedCategories.has(obj.category));
 
       // Если есть явный интент (например, dental), сначала пробуем оставить только объекты, которые ему соответствуют
-      const intentFiltered =
-        intentsDetected.size > 0
-          ? base.filter((obj) => objectMatchesIntent(obj, intentsDetected))
-          : base;
+      let intentFiltered: SocialObject[] = base;
+      if (intentsDetected.size > 0) {
+        if (intentsDetected.has("headache") || intentsDetected.has("clinic")) {
+          const nonDentalHealthcare = base.filter(
+            (obj) =>
+              obj.category === "healthcare" &&
+              !["зуб", "стоматолог", "стоматологич", "кариес", "пломб", "ортодонт"].some((t) =>
+                `${obj.name} ${obj.address} ${obj.description}`.toLowerCase().includes(t)
+              )
+          );
+          // Если есть не-стоматологические медучреждения — используем только их,
+          // иначе — любые healthcare, иначе — fallback ко всем base
+          if (nonDentalHealthcare.length > 0) {
+            intentFiltered = nonDentalHealthcare;
+          } else {
+            const anyHealthcare = base.filter((obj) => obj.category === "healthcare");
+            intentFiltered = anyHealthcare.length > 0 ? anyHealthcare : base;
+          }
+        } else {
+          const matched = base.filter((obj) => objectMatchesIntent(obj, intentsDetected));
+          intentFiltered = matched.length > 0 ? matched : base;
+        }
+      }
       const usedBase = intentFiltered.length > 0 ? intentFiltered : base;
 
-      const tier1 = usedBase.filter((obj) => isObjectAccessibleForProfile(obj) && scoreObject(obj) > 0);
-      const tier2 = usedBase.filter((obj) => scoreObject(obj) > 0);
-      const tier3 = usedBase.filter((obj) => isObjectAccessibleForProfile(obj));
-      const tier4 = usedBase;
+      // Если указаны особенности здоровья — работаем только с доступными объектами
+      const accessiblePool =
+        selectedDisabilities && selectedDisabilities.size > 0
+          ? usedBase.filter(isObjectAccessibleForProfile)
+          : usedBase;
 
-      const pickFrom = tier1.length ? tier1 : tier2.length ? tier2 : tier3.length ? tier3 : tier4;
+      if (selectedDisabilities && selectedDisabilities.size > 0 && accessiblePool.length === 0) {
+        setAiError("Нет доступных объектов с учётом выбранных особенностей.");
+        setIsAiLoading(false);
+        return;
+      }
+
+      const tier1 = accessiblePool.filter((obj) => isObjectAccessibleForProfile(obj) && scoreObject(obj) > 0);
+      const tier2 = accessiblePool.filter((obj) => scoreObject(obj) > 0);
+      const tier3 = accessiblePool.filter((obj) => isObjectAccessibleForProfile(obj));
+      const tier4 = accessiblePool;
+
+      // Для головной боли и запросов врача используем весь usedBase, чтобы не отсечь близкие варианты
+      const pickFrom =
+        intentsDetected.has("headache") || intentsDetected.has("clinic")
+          ? accessiblePool
+          : tier1.length
+          ? tier1
+          : tier2.length
+          ? tier2
+          : tier3.length
+          ? tier3
+          : tier4;
 
       if (pickFrom.length === 0) {
         setAiError("Не удалось найти подходящий объект с учётом вашего профиля.");
@@ -310,21 +395,35 @@ export function RouteCard({
 
       let best: { obj: SocialObject; distance: number; score: number } | null = null;
 
-      pickFrom.forEach((obj) => {
-        const toCoords: [number, number] = [obj.coordinates[1], obj.coordinates[0]]; // [lng, lat]
-        const distance = calculateDistance(fromCoords!, toCoords);
-        const score = scoreObject(obj);
+      // Если интент — головная боль или запрос "к врачу/в больницу/поликлинику", берём строго ближайшее по дистанции
+      if ((intentsDetected.has("headache") || intentsDetected.has("clinic")) && pickFrom.length > 0) {
+        const candidates = pickFrom.map((obj) => {
+          const toCoords: [number, number] = [obj.coordinates[1], obj.coordinates[0]];
+          const distance = calculateDistance(fromCoords!, toCoords);
+          return { obj, distance, score: 0 };
+        });
+        candidates.sort((a, b) => a.distance - b.distance);
+        best = candidates[0];
+      } else {
+        pickFrom.forEach((obj) => {
+          const toCoords: [number, number] = [obj.coordinates[1], obj.coordinates[0]]; // [lng, lat]
+          const distance = calculateDistance(fromCoords!, toCoords);
+          const score = scoreObject(obj);
 
-        if (!best) {
-          best = { obj, distance, score };
-          return;
-        }
+          if (!best) {
+            best = { obj, distance, score };
+            return;
+          }
 
-        // Приоритет: выше текстовый балл, затем меньшая дистанция
-        if (score > best.score || (score === best.score && distance < best.distance)) {
-          best = { obj, distance, score };
-        }
-      });
+          const scoreDiff = score - best.score;
+          // Допускаем приоритет расстояния, если разница в скоре небольшая
+          const isDistancePreferable = Math.abs(scoreDiff) <= 1.0 && distance < best.distance - 0.2;
+
+          if (score > best.score || isDistancePreferable) {
+            best = { obj, distance, score };
+          }
+        });
+      }
 
       if (!best) {
         setAiError("Не удалось подобрать ближайший объект.");
@@ -374,6 +473,42 @@ export function RouteCard({
     setAiError("Введите запрос для ИИ-помощника.");
   };
 
+  const handleVoiceInput = () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setAiError("Голосовой ввод не поддерживается вашим браузером.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "ru-RU";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = (event: any) => {
+      const transcript = event?.results?.[0]?.[0]?.transcript || "";
+      if (transcript) {
+        setSearchQuery(transcript);
+        setAiError(null);
+      }
+      setIsListening(false);
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+      setAiError("Не удалось распознать речь.");
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    setIsListening(true);
+    recognition.start();
+  };
+
   return (
     <div className="object-card-overlay">
       <div className="object-card">
@@ -400,6 +535,21 @@ export function RouteCard({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
+              <button
+                type="button"
+                className="route-card-voice-button"
+                onClick={handleVoiceInput}
+                disabled={isListening || isAiLoading}
+                aria-label="Голосовой ввод"
+                title="Голосовой ввод"
+              >
+                <KeyboardVoiceIcon
+                  sx={{
+                    color: isListening ? "#4BAF50" : "currentColor",
+                    fontSize: 22,
+                  }}
+                />
+              </button>
             </div>
           </div>
 

@@ -1,6 +1,7 @@
 import { DisabilityType, SocialCategory, SocialObject } from "../types";
 
-const API_URL = "https://foundation-models.api.cloud.ru/v1/chat/completions";
+// В dev уходим через прокси Vite (`/api/gigachat`) чтобы обойти CORS.
+const API_URL = "/api/gigachat/v1/chat/completions";
 
 // В Vite переменные окружения, доступные на клиенте, должны начинаться с VITE_
 const API_KEY = import.meta.env.VITE_CLOUD_RU_API_KEY as string | undefined;

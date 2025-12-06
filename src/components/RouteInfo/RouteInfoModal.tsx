@@ -5,11 +5,10 @@ interface RouteInfoModalProps {
   destinationName: string;
   from: [number, number];
   to: [number, number];
-  aiComment?: string;
   onClose: () => void;
 }
 
-export function RouteInfoModal({ destinationName, from, to, aiComment, onClose }: RouteInfoModalProps) {
+export function RouteInfoModal({ destinationName, from, to, onClose }: RouteInfoModalProps) {
   // Нормализуем стартовую точку: если пользователь вне Тульской области,
   // считаем, что маршрут начинается из центра Тулы (как на карте)
   const normalizeStart = (coords: [number, number]): [number, number] => {
@@ -106,12 +105,6 @@ export function RouteInfoModal({ destinationName, from, to, aiComment, onClose }
             <div className="route-card-value">{distanceKm} км</div>
           </div>
 
-          {aiComment && (
-            <div className="route-card-row">
-              <div className="route-card-label">Комментарий ИИ</div>
-              <div className="route-card-value">{aiComment}</div>
-            </div>
-          )}
         </div>
       </div>
     </div>
