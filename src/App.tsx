@@ -25,6 +25,7 @@ export default function App() {
     from: [number, number];
     to: [number, number];
     destinationName: string;
+    aiComment?: string;
   } | null>(null);
   const [isRouteInfoModalOpen, setIsRouteInfoModalOpen] = useState(false);
   const [selectedDisabilities, setSelectedDisabilities] = useState<
@@ -294,11 +295,13 @@ export default function App() {
                           console.log("Выбрана точка на карте:", selectedMapPoint);
                           setIsSelectingFromMap(false);
                         }}
-                        onBuildRoute={(from, to, destinationName) => {
-                          setRoute({ from, to, destinationName });
+                        onBuildRoute={(from, to, destinationName, aiComment) => {
+                          setRoute({ from, to, destinationName, aiComment });
                           setIsRouteCardOpen(false);
                           setIsRouteInfoModalOpen(true);
                         }}
+                        selectedDisabilities={selectedDisabilities}
+                        selectedCategories={selectedCategories}
                       />
                     )}
                     {isRouteInfoModalOpen && route && (
@@ -306,6 +309,7 @@ export default function App() {
                         destinationName={route.destinationName}
                         from={route.from}
                         to={route.to}
+                        aiComment={route.aiComment}
                         onClose={() => {
                           setIsRouteInfoModalOpen(false);
                           setRoute(null);

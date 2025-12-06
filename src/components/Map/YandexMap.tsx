@@ -33,6 +33,7 @@ interface YandexMapProps {
     from: [number, number];
     to: [number, number];
     destinationName: string;
+    aiComment?: string;
   } | null;
 }
 
