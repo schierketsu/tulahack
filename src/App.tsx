@@ -1,4 +1,5 @@
 import { Route, Routes } from "react-router-dom";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { YandexMap } from "./components/Map/YandexMap";
 import { ObjectCard } from "./components/ObjectCard/ObjectCard";
 import { RouteCard } from "./components/RouteCard/RouteCard";
@@ -7,6 +8,7 @@ import { useState, useRef, useEffect } from "react";
 import { SocialObject, DisabilityType } from "./types";
 import { socialObjects } from "./data/socialObjects";
 import { CATEGORY_COLORS } from "./utils/mapConfig";
+import { ChatAssistant } from "./components/ChatAssistant/ChatAssistant";
 
 export default function App() {
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
@@ -34,6 +36,11 @@ export default function App() {
   const [profileTab, setProfileTab] = useState<"settings" | "achievements">(
     "settings"
   );
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [childAgeProfile, setChildAgeProfile] = useState("");
+  const [pregnancyWeekProfile, setPregnancyWeekProfile] = useState("");
+  const [familyStatusProfile, setFamilyStatusProfile] = useState("");
+  const [familyIncomeProfile, setFamilyIncomeProfile] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const categories = [
@@ -49,6 +56,30 @@ export default function App() {
     { type: "wheelchair", label: "Кресло-коляска", icon: "/профиль/коляска.png" },
     { type: "mobility", label: "Опорно-двигательный аппарат", icon: "/профиль/трость.png" },
     { type: "mental", label: "Умственные нарушения", icon: "/профиль/мозг.png" }
+  ];
+
+  const achievements = [
+    {
+      id: "achv-1",
+      title: "Первый шаг",
+      icon: "/достижения/1уровень.png",
+      condition: "Оставь 1 отзыв о посещённом объекте",
+      completed: true,
+    },
+    {
+      id: "achv-2",
+      title: "Наставник",
+      icon: "/достижения/2ур.png",
+      condition: "Оставь 10 отзывов",
+      completed: false,
+    },
+    {
+      id: "achv-3",
+      title: "Гид региона",
+      icon: "/достижения/3ур.png",
+      condition: "Оставь 25 отзывов и помоги другим найти поддержку",
+      completed: false,
+    },
   ];
 
   const toggleDisability = (type: DisabilityType) => {
@@ -102,12 +133,13 @@ export default function App() {
         );
 
   return (
-    <div className="app-root">
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <div className="map-page">
+    <>
+      <div className="app-root">
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <div className="map-page">
               <header className="app-header">
                 <div className="app-header-inner">
                   {!isSearchOpen && (
@@ -383,7 +415,7 @@ export default function App() {
                         }`}
                         onClick={() => setProfileTab("achievements")}
                       >
-                        Достижения
+                        Моя активность
                       </button>
                     </div>
 
@@ -413,14 +445,66 @@ export default function App() {
                             </button>
                           ))}
                         </div>
+                        <div className="profile-context-fields">
+                          <label className="profile-context-label">
+                            Возраст / дата рождения ребёнка
+                            <input
+                              type="text"
+                              value={childAgeProfile}
+                              onChange={(e) => setChildAgeProfile(e.target.value)}
+                              placeholder="Например, 3 месяца или 12.07.2024"
+                            />
+                          </label>
+                          <label className="profile-context-label">
+                            Статус семьи (малообеспеченная, многодетная, инвалидность и т.п.)
+                            <input
+                              type="text"
+                              value={familyStatusProfile}
+                              onChange={(e) => setFamilyStatusProfile(e.target.value)}
+                              placeholder="Например, многодетная семья"
+                            />
+                          </label>
+                          <label className="profile-context-label">
+                            Доход семьи (примерно или справка)
+                            <input
+                              type="text"
+                              value={familyIncomeProfile}
+                              onChange={(e) => setFamilyIncomeProfile(e.target.value)}
+                              placeholder="Например, 55 000 ₽ на семью"
+                            />
+                          </label>
+                          <label className="profile-context-label">
+                            Срок беременности
+                            <input
+                              type="text"
+                              value={pregnancyWeekProfile}
+                              onChange={(e) => setPregnancyWeekProfile(e.target.value)}
+                              placeholder="Например, 18 недель"
+                            />
+                          </label>
+                        </div>
                       </div>
                     )}
 
                     {profileTab === "achievements" && (
                       <div className="profile-section">
                         <div className="route-card-label">Достижения</div>
-                        <div className="profile-achievements-placeholder">
-                          Здесь в будущем появятся ваши достижения.
+                        <div className="achievements-grid">
+                          {achievements.map((ach) => (
+                            <div key={ach.id} className="achievement-item">
+                              <div className="achievement-card">
+                                <div className="achievement-status">
+                                  <CheckCircleIcon
+                                    fontSize="small"
+                                    className={ach.completed ? "achievement-status-icon done" : "achievement-status-icon"}
+                                  />
+                                </div>
+                                <img src={ach.icon} alt={ach.title} className="achievement-icon" />
+                                <div className="achievement-title">{ach.title}</div>
+                              </div>
+                              <div className="achievement-condition">{ach.condition}</div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}
@@ -455,7 +539,11 @@ export default function App() {
                 <button
                   type="button"
                   className="bottom-nav-section bottom-nav-section-center bottom-nav-button bottom-nav-placeholder"
-                  disabled
+                  onClick={() => {
+                    setIsChatOpen(true);
+                    setActiveTab("chat");
+                  }}
+                  aria-label="Открыть чат с ИИ"
                 >
                   <img
                     src="/gigachat.svg"
@@ -485,7 +573,25 @@ export default function App() {
           }
         />
       </Routes>
-    </div>
+      </div>
+      {isChatOpen && (
+        <ChatAssistant
+          isOpen={isChatOpen}
+          onClose={() => {
+            setIsChatOpen(false);
+            if (activeTab === "chat") {
+              setActiveTab("main");
+            }
+          }}
+          defaultRegion="Тульская область"
+          relatedObjects={socialObjects}
+          childAge={childAgeProfile}
+          pregnancyWeek={pregnancyWeekProfile}
+          familyStatus={familyStatusProfile}
+          familyIncome={familyIncomeProfile}
+        />
+      )}
+    </>
   );
 }
 
