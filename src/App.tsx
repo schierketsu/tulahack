@@ -5,10 +5,12 @@ import { ObjectCard } from "./components/ObjectCard/ObjectCard";
 import { RouteCard } from "./components/RouteCard/RouteCard";
 import { RouteInfoModal } from "./components/RouteInfo/RouteInfoModal";
 import { useState, useRef, useEffect } from "react";
-import { SocialObject, DisabilityType } from "./types";
+import { SocialObject, DisabilityType, User, UserStats } from "./types";
 import { socialObjects } from "./data/socialObjects";
 import { CATEGORY_COLORS } from "./utils/mapConfig";
 import { ChatAssistant } from "./components/ChatAssistant/ChatAssistant";
+import { login, register, me } from "./api";
+import ExitToAppIcon from "@mui/icons-material/ExitToApp";
 
 export default function App() {
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
@@ -34,13 +36,24 @@ export default function App() {
     Set<DisabilityType>
   >(new Set());
   const [profileTab, setProfileTab] = useState<"settings" | "achievements">(
-    "settings"
+    "achievements"
   );
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [childAgeProfile, setChildAgeProfile] = useState("");
+  const [childrenProfile, setChildrenProfile] = useState<string[]>([]);
+  const [noChildrenPregnant, setNoChildrenPregnant] = useState(false);
   const [pregnancyWeekProfile, setPregnancyWeekProfile] = useState("");
   const [familyStatusProfile, setFamilyStatusProfile] = useState("");
   const [familyIncomeProfile, setFamilyIncomeProfile] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authNickname, setAuthNickname] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authToken, setAuthToken] = useState<string | null>(() => {
+    return localStorage.getItem("auth_token");
+  });
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userStats, setUserStats] = useState<UserStats | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const categories = [
@@ -57,30 +70,106 @@ export default function App() {
     { type: "mobility", label: "Опорно-двигательный аппарат", icon: "/профиль/трость.png" },
     { type: "mental", label: "Умственные нарушения", icon: "/профиль/мозг.png" }
   ];
+  const familyStatusOptions = [
+    "Многодетная семья",
+    "Малообеспеченная семья",
+    "Семья ребёнка-инвалида",
+    "Опекун / приёмная семья",
+    "Одинокий родитель"
+  ];
 
-  const achievements = [
+  const achievementDefs = [
     {
       id: "achv-1",
       title: "Первый шаг",
       icon: "/достижения/1уровень.png",
       condition: "Оставь 1 отзыв о посещённом объекте",
-      completed: true,
+      threshold: 1,
     },
     {
       id: "achv-2",
       title: "Наставник",
       icon: "/достижения/2ур.png",
       condition: "Оставь 10 отзывов",
-      completed: false,
+      threshold: 10,
     },
     {
       id: "achv-3",
       title: "Гид региона",
       icon: "/достижения/3ур.png",
       condition: "Оставь 25 отзывов и помоги другим найти поддержку",
-      completed: false,
+      threshold: 25,
     },
   ];
+  const achievements = achievementDefs.map((ach) => ({
+    ...ach,
+    completed: userStats ? userStats.reviewCount >= ach.threshold : false,
+  }));
+  const level = userStats ? Math.floor(userStats.points / 100) + 1 : 1;
+  const levelProgress = userStats ? Math.min(userStats.points % 100, 100) : 0;
+
+  const childAgeOptions = [
+    "0–1 год",
+    "1–3 года",
+    "3–6 лет",
+    "6–12 лет",
+    "12–18 лет"
+  ];
+
+  const fetchMe = async (token: string) => {
+    try {
+      const res = await me(token);
+      setCurrentUser(res.user);
+      setUserStats(res.stats);
+    } catch (err) {
+      console.error(err);
+      setCurrentUser(null);
+      setUserStats(null);
+      setAuthToken(null);
+      localStorage.removeItem("auth_token");
+    }
+  };
+
+  useEffect(() => {
+    if (!authToken) {
+      setCurrentUser(null);
+      setUserStats(null);
+      return;
+    }
+    fetchMe(authToken);
+  }, [authToken]);
+
+  const handleAuthSubmit = async () => {
+    try {
+      setAuthLoading(true);
+      setAuthError(null);
+      const nickname = authNickname.trim();
+      const password = authPassword.trim();
+      if (!nickname || !password) {
+        setAuthError("Введите никнейм и пароль");
+        setAuthLoading(false);
+        return;
+      }
+      const action = authMode === "login" ? login : register;
+      const res = await action(nickname, password);
+      setAuthToken(res.token);
+      localStorage.setItem("auth_token", res.token);
+      setCurrentUser(res.user);
+      setAuthPassword("");
+      fetchMe(res.token);
+    } catch (err: any) {
+      setAuthError(err?.message || "Ошибка авторизации");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setAuthToken(null);
+    setCurrentUser(null);
+    setUserStats(null);
+    localStorage.removeItem("auth_token");
+  };
 
   const toggleDisability = (type: DisabilityType) => {
     const next = new Set(selectedDisabilities);
@@ -100,6 +189,35 @@ export default function App() {
       newCategories.add(categoryId);
     }
     setSelectedCategories(newCategories);
+  };
+
+  const handleAddChild = () => {
+    if (noChildrenPregnant) return;
+    setChildrenProfile((prev) => [...prev, ""]);
+  };
+
+  const handleChangeChildAge = (index: number, value: string) => {
+    setChildrenProfile((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  };
+
+  const handleRemoveChild = (index: number) => {
+    setChildrenProfile((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const toggleNoChildrenPregnant = () => {
+    setNoChildrenPregnant((prev) => {
+      const next = !prev;
+      if (next) {
+        setChildrenProfile([]);
+      } else {
+        setPregnancyWeekProfile("");
+      }
+      return next;
+    });
   };
 
   // Закрываем dropdown при клике вне его
@@ -309,6 +427,17 @@ export default function App() {
                         object={selectedObject}
                         onClose={() => setSelectedObjectId(null)}
                         selectedDisabilities={selectedDisabilities}
+                        authToken={authToken}
+                        currentUser={currentUser}
+                        onRequireAuth={() => {
+                          setActiveTab("profile");
+                          setProfileTab("achievements");
+                        }}
+                        onReviewAdded={() => {
+                          if (authToken) {
+                            fetchMe(authToken);
+                          }
+                        }}
                         onBuildRoute={(id) => {
                           const object = socialObjects.find((o) => o.id === id);
                           if (!object) return;
@@ -398,16 +527,74 @@ export default function App() {
                   </>
                 ) : (
                   <div className="profile-page">
+                    {!currentUser && (
+                      <div className="profile-auth-card">
+                        <div className="profile-auth-header">
+                          <div>
+                            <div className="profile-auth-title">
+                              Вход или регистрация
+                            </div>
+                            <div className="profile-auth-subtitle">
+                              Прежде чем, оставлять отзывы
+                            </div>
+                          </div>
+                        </div>
+                        <div className="profile-auth-form">
+                          <div className="profile-auth-fields">
+                            <input
+                              type="text"
+                              placeholder="Никнейм"
+                              value={authNickname}
+                              onChange={(e) => setAuthNickname(e.target.value)}
+                              autoComplete="username"
+                            />
+                            <input
+                              type="password"
+                              placeholder="Пароль"
+                              value={authPassword}
+                              onChange={(e) => setAuthPassword(e.target.value)}
+                              autoComplete={authMode === "login" ? "current-password" : "new-password"}
+                            />
+                          </div>
+                          {authError && <div className="profile-auth-error">{authError}</div>}
+                          <button
+                            className="profile-auth-button"
+                            type="button"
+                            onClick={handleAuthSubmit}
+                            disabled={authLoading}
+                          >
+                            {authMode === "login" ? "Войти" : "Зарегистрироваться"}
+                          </button>
+                          <div className="profile-auth-switch">
+                            {authMode === "login" ? (
+                              <>
+                                Нет аккаунта?
+                                <button
+                                  type="button"
+                                  className="profile-auth-link"
+                                  onClick={() => setAuthMode("register")}
+                                >
+                                  Зарегистрироваться
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                Уже есть аккаунт?
+                                <button
+                                  type="button"
+                                  className="profile-auth-link"
+                                  onClick={() => setAuthMode("login")}
+                                >
+                                  Войти
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="profile-tabs">
-                      <button
-                        type="button"
-                        className={`profile-tab-button ${
-                          profileTab === "settings" ? "active" : ""
-                        }`}
-                        onClick={() => setProfileTab("settings")}
-                      >
-                        Настройки
-                      </button>
                       <button
                         type="button"
                         className={`profile-tab-button ${
@@ -416,6 +603,15 @@ export default function App() {
                         onClick={() => setProfileTab("achievements")}
                       >
                         Моя активность
+                      </button>
+                      <button
+                        type="button"
+                        className={`profile-tab-button ${
+                          profileTab === "settings" ? "active" : ""
+                        }`}
+                        onClick={() => setProfileTab("settings")}
+                      >
+                        Настройки
                       </button>
                     </div>
 
@@ -447,25 +643,21 @@ export default function App() {
                         </div>
                         <div className="profile-context-fields">
                           <label className="profile-context-label">
-                            Возраст / дата рождения ребёнка
-                            <input
-                              type="text"
-                              value={childAgeProfile}
-                              onChange={(e) => setChildAgeProfile(e.target.value)}
-                              placeholder="Например, 3 месяца или 12.07.2024"
-                            />
-                          </label>
-                          <label className="profile-context-label">
-                            Статус семьи (малообеспеченная, многодетная, инвалидность и т.п.)
-                            <input
-                              type="text"
+                            Статус семьи
+                            <select
                               value={familyStatusProfile}
                               onChange={(e) => setFamilyStatusProfile(e.target.value)}
-                              placeholder="Например, многодетная семья"
-                            />
+                            >
+                              <option value="">Выберите статус</option>
+                              {familyStatusOptions.map((status) => (
+                                <option key={status} value={status}>
+                                  {status}
+                                </option>
+                              ))}
+                            </select>
                           </label>
                           <label className="profile-context-label">
-                            Доход семьи (примерно или справка)
+                            Доход семьи
                             <input
                               type="text"
                               value={familyIncomeProfile}
@@ -473,39 +665,133 @@ export default function App() {
                               placeholder="Например, 55 000 ₽ на семью"
                             />
                           </label>
-                          <label className="profile-context-label">
-                            Срок беременности
-                            <input
-                              type="text"
-                              value={pregnancyWeekProfile}
-                              onChange={(e) => setPregnancyWeekProfile(e.target.value)}
-                              placeholder="Например, 18 недель"
-                            />
-                          </label>
+                          <div className="profile-children-block">
+                            <div className="profile-children-header">
+                              <div className="profile-children-title">Дети</div>
+                              <button
+                                type="button"
+                                className="profile-add-child-button"
+                                onClick={handleAddChild}
+                                disabled={noChildrenPregnant}
+                              >
+                                Добавить ребёнка
+                              </button>
+                            </div>
+                            <div className="profile-children-list">
+                              {childrenProfile.length === 0 && !noChildrenPregnant && (
+                                <div className="profile-children-empty">Пока не добавлено</div>
+                              )}
+                              {childrenProfile.map((age, idx) => (
+                                <div key={idx} className="profile-children-row">
+                                  <select
+                                    className="profile-child-select"
+                                    value={age}
+                                    onChange={(e) => handleChangeChildAge(idx, e.target.value)}
+                                  >
+                                    <option value="">Возраст ребёнка</option>
+                                    {childAgeOptions.map((opt) => (
+                                      <option key={opt} value={opt}>
+                                        {opt}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    className="profile-child-remove"
+                                    onClick={() => handleRemoveChild(idx)}
+                                  >
+                                    Удалить
+                                  </button>
+                                </div>
+                              ))}
+                              {noChildrenPregnant && (
+                                <div className="profile-children-empty">
+                                  Детей нет, ожидаем ребёнка
+                                </div>
+                              )}
+                            </div>
+                            <label className="profile-checkbox">
+                              <input
+                                type="checkbox"
+                                checked={noChildrenPregnant}
+                                onChange={toggleNoChildrenPregnant}
+                              />
+                              Детей нет, но беременны
+                            </label>
+                          </div>
+                            {noChildrenPregnant && (
+                              <label className="profile-context-label">
+                                Срок беременности
+                                <input
+                                  type="text"
+                                  value={pregnancyWeekProfile}
+                                  onChange={(e) => setPregnancyWeekProfile(e.target.value)}
+                                  placeholder="Например, 18 недель"
+                                />
+                              </label>
+                            )}
                         </div>
                       </div>
                     )}
 
                     {profileTab === "achievements" && (
                       <div className="profile-section">
-                        <div className="route-card-label">Достижения</div>
-                        <div className="achievements-grid">
-                          {achievements.map((ach) => (
-                            <div key={ach.id} className="achievement-item">
-                              <div className="achievement-card">
-                                <div className="achievement-status">
-                                  <CheckCircleIcon
-                                    fontSize="small"
-                                    className={ach.completed ? "achievement-status-icon done" : "achievement-status-icon"}
-                                  />
+                        <div className="activity-profile">
+                            <div className="activity-avatar" />
+                            <div className="activity-info">
+                              <div className="activity-header">
+                                <div>
+                                  <div className="activity-nickname">
+                                    {currentUser ? `@${currentUser.nickname}` : "Гость"}
+                                  </div>
+                                  <div className="activity-level">Уровень {level}</div>
                                 </div>
-                                <img src={ach.icon} alt={ach.title} className="achievement-icon" />
-                                <div className="achievement-title">{ach.title}</div>
+                                {currentUser && (
+                                  <button
+                                    type="button"
+                                    className="activity-logout-button"
+                                    onClick={handleLogout}
+                                    title="Выйти"
+                                  >
+                                    <ExitToAppIcon fontSize="small" />
+                                  </button>
+                                )}
                               </div>
-                              <div className="achievement-condition">{ach.condition}</div>
+                              <div className="activity-progress">
+                                <div
+                                  className="activity-progress-bar"
+                                  style={{ width: `${levelProgress}%` }}
+                                />
+                              </div>
+                              <div className="activity-progress-text">
+                                {userStats ? `${levelProgress} / 100 поинтов` : "Войдите, чтобы копить поинты"} · 10 за отзыв
+                              </div>
                             </div>
-                          ))}
                         </div>
+                        <div className="route-card-label">Достижения</div>
+                        {currentUser ? (
+                          <div className="achievements-grid">
+                            {achievements.map((ach) => (
+                              <div key={ach.id} className="achievement-item">
+                                <div className="achievement-card">
+                                  <div className="achievement-status">
+                                    <CheckCircleIcon
+                                      fontSize="small"
+                                      className={ach.completed ? "achievement-status-icon done" : "achievement-status-icon"}
+                                    />
+                                  </div>
+                                  <img src={ach.icon} alt={ach.title} className="achievement-icon" />
+                                  <div className="achievement-title">{ach.title}</div>
+                                </div>
+                                <div className="achievement-condition">{ach.condition}</div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="achievement-guest-hint">
+                            Вы увидите ачивки после авторизации
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -558,7 +844,7 @@ export default function App() {
                     setActiveTab("profile");
                     setIsRouteCardOpen(false);
                     setSelectedObjectId(null);
-                    setProfileTab("settings");
+                        setProfileTab("achievements");
                   }}
                 >
                   <img 
@@ -585,7 +871,6 @@ export default function App() {
           }}
           defaultRegion="Тульская область"
           relatedObjects={socialObjects}
-          childAge={childAgeProfile}
           pregnancyWeek={pregnancyWeekProfile}
           familyStatus={familyStatusProfile}
           familyIncome={familyIncomeProfile}

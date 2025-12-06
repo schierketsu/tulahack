@@ -24,4 +24,27 @@ export interface SocialObject {
   };
 }
 
+export interface User {
+  id: number;
+  nickname: string;
+}
+
+export interface UserStats {
+  reviewCount: number;
+  points: number;
+}
+
+export interface Review {
+  id: number;
+  rating: number;
+  text: string;
+  created_at: string;
+  nickname?: string;
+}
+
+export interface ReviewSummary {
+  count: number;
+  avgRating: number;
+}
+
 
